@@ -34,7 +34,6 @@ func (usecase *MetricUsecaseImpl) MetricDataProcessing(metricType, metricName, v
 	metricValueIsInt := metricValue == math.Trunc(metricValue)
 
 	if metricType == counterMetric {
-
 		if metricValueIsInt {
 			if v, err := strconv.Atoi(valueStr); err == nil {
 				usecase.storageRepository.UpdateCounterMetic(metricType, v)
