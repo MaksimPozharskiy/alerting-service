@@ -2,9 +2,10 @@ package usecases
 
 import (
 	repositories "alerting-service/internal/repository"
-	"fmt"
 	"math"
 	"strconv"
+
+	v "alerting-service/internal/validation"
 )
 
 const counterMetric = "counter"
@@ -28,26 +29,26 @@ func (usecase *MetricUsecaseImpl) MetricDataProcessing(metricType, metricName, v
 
 	metricValue, err := strconv.ParseFloat(valueStr, 64)
 	if err != nil {
-		return fmt.Errorf("incorrect metric value")
+		return v.ErrInvalidMetricValue
 	}
 
 	metricValueIsInt := metricValue == math.Trunc(metricValue)
 
 	if metricType == counterMetric {
 		if metricValueIsInt {
-			if v, err := strconv.Atoi(valueStr); err == nil {
-				usecase.storageRepository.UpdateCounterMetic(metricType, v)
+			if value, err := strconv.Atoi(valueStr); err == nil {
+				usecase.storageRepository.UpdateCounterMetic(metricType, value)
 			} else {
-				return fmt.Errorf("incorrect metric value")
+				return v.ErrInvalidMetricValue
 			}
 		} else {
-			return fmt.Errorf("incorrect metric value")
+			return v.ErrInvalidMetricValue
 		}
 	}
 
 	if metricType == gaugeMetric {
 		if metricValueIsInt {
-			return fmt.Errorf("incorrect metric value")
+			return v.ErrInvalidMetricValue
 		} else {
 			usecase.storageRepository.UpdateGaugeMetic(metricType, metricValue)
 		}

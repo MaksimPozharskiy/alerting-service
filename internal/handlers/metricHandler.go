@@ -2,25 +2,15 @@ package handlers
 
 import (
 	"alerting-service/internal/usecases"
-	"errors"
 	"fmt"
 	"net/http"
 
 	utils "alerting-service/internal/utils"
+	v "alerting-service/internal/validation"
 )
 
 type metricHandler struct {
 	metricUsecase usecases.MetricUsecase
-}
-
-var ErrInvalidMetricValue = errors.New("invalid metric type")
-var ErrMethodNotAllowred = errors.New("method not allowed")
-
-var errMap = map[error]int{
-	utils.ErrMetricNotFound:    http.StatusNotFound,
-	utils.ErrInvalidMetricType: http.StatusBadRequest,
-	ErrInvalidMetricValue:      http.StatusBadRequest,
-	ErrMethodNotAllowred:       http.StatusMethodNotAllowed,
 }
 
 func NewMetricHandler(metricUsecase usecases.MetricUsecase) *metricHandler {
@@ -29,7 +19,7 @@ func NewMetricHandler(metricUsecase usecases.MetricUsecase) *metricHandler {
 
 func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		handleError(w, ErrMethodNotAllowred)
+		handleError(w, v.ErrMethodNotAllowed)
 		return
 	}
 
@@ -50,7 +40,8 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, req *http.Requ
 }
 
 func handleError(w http.ResponseWriter, err error) {
-	statusCode, ok := errMap[err]
+	statusCode, ok := v.ErrMap[err]
+
 	if !ok {
 		statusCode = http.StatusInternalServerError
 	}

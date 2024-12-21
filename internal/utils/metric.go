@@ -1,16 +1,10 @@
 package utils
 
 import (
-	"errors"
 	"slices"
 	"strings"
 
 	v "alerting-service/internal/validation"
-)
-
-var (
-	ErrMetricNotFound    = errors.New("metric not found")
-	ErrInvalidMetricType = errors.New("invalid metric type")
 )
 
 type Metric struct {
@@ -25,12 +19,12 @@ func ParseMetricURL(url string) (Metric, error) {
 	urlData := strings.Split(url, "/")
 
 	if len(urlData) != v.ValidCountURLParts {
-		return m, ErrMetricNotFound
+		return m, v.ErrMetricNotFound
 	}
 
 	metricType := urlData[2]
 	if !slices.Contains(v.ValidMetricTypes, metricType) {
-		return m, ErrInvalidMetricType
+		return m, v.ErrInvalidMetricType
 	}
 
 	m.Type = metricType

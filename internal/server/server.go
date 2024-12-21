@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -22,7 +21,6 @@ func NewServer(port string) Server {
 }
 
 func (s *ServerImpl) Start(mux *http.ServeMux) {
-	fmt.Printf("Starting server at port %s\n", s.httpServer.Addr)
 	err := http.ListenAndServe(s.httpServer.Addr, mux)
 	if err != nil {
 		panic(err)
