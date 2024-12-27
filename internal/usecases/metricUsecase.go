@@ -33,12 +33,12 @@ func (usecase *MetricUsecaseImpl) MetricDataProcessing(metricType, metricName, v
 	switch metricType {
 	case counterMetric:
 		if value, err := strconv.Atoi(valueStr); err == nil {
-			usecase.storageRepository.UpdateCounterMetic(metricType, value)
+			usecase.storageRepository.UpdateCounterMetric(metricName, value)
 		} else {
 			return v.ErrInvalidMetricValue
 		}
 	case gaugeMetric:
-		usecase.storageRepository.UpdateGaugeMetic(metricType, metricValue)
+		usecase.storageRepository.UpdateGaugeMetric(metricName, metricValue)
 	}
 
 	return nil

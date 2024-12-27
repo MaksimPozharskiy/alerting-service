@@ -2,9 +2,9 @@ package repositories
 
 type MemStorage interface {
 	GetCounterMetric(string) (int, bool)
-	GetGaugesMetric(string) (float64, bool)
-	UpdateGaugeMetic(string, float64)
-	UpdateCounterMetic(string, int)
+	GetGaugeMetric(string) (float64, bool)
+	UpdateGaugeMetric(string, float64)
+	UpdateCounterMetric(string, int)
 }
 
 type MemStorageImp struct {
@@ -17,25 +17,25 @@ func NewStorageRepository() MemStorage {
 }
 
 func (s *MemStorageImp) GetCounterMetric(key string) (int, bool) {
-	if counter, ok := s.counters[key]; ok {
+	if counter, ok := s.counters[key]; !ok {
 		return 0, ok
 	} else {
-		return counter, false
+		return counter, ok
 	}
 }
 
-func (s *MemStorageImp) GetGaugesMetric(key string) (float64, bool) {
-	if gauge, ok := s.gauges[key]; ok {
-		return 0, ok
+func (s *MemStorageImp) GetGaugeMetric(key string) (float64, bool) {
+	if gauge, ok := s.gauges[key]; !ok {
+		return 0.0, ok
 	} else {
-		return gauge, false
+		return gauge, ok
 	}
 }
 
-func (s *MemStorageImp) UpdateGaugeMetic(metric string, value float64) {
-	s.gauges[metric] = value
+func (s *MemStorageImp) UpdateGaugeMetric(metricName string, value float64) {
+	s.gauges[metricName] = value
 }
 
-func (s *MemStorageImp) UpdateCounterMetic(metric string, value int) {
-	s.counters[metric] += value
+func (s *MemStorageImp) UpdateCounterMetric(metricName string, value int) {
+	s.counters[metricName] += value
 }

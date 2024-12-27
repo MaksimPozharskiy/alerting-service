@@ -5,7 +5,7 @@ import (
 )
 
 type Server interface {
-	Start(*http.ServeMux)
+	Start(*http.ServeMux) error
 }
 
 type ServerImpl struct {
@@ -20,9 +20,9 @@ func NewServer(port string) Server {
 	}
 }
 
-func (s *ServerImpl) Start(mux *http.ServeMux) {
-	err := http.ListenAndServe(s.httpServer.Addr, mux)
-	if err != nil {
-		panic(err)
+func (s *ServerImpl) Start(mux *http.ServeMux) error {
+	if err := http.ListenAndServe(s.httpServer.Addr, mux); err != http.ErrServerClosed {
+		return err
 	}
+	return nil
 }

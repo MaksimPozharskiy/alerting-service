@@ -18,5 +18,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc(`/update/`, metricsHandler.UpdateMetric)
 
-	server.Start(mux)
+	err := server.Start(mux)
+	if err != nil {
+		panic(err)
+	}
 }
