@@ -5,6 +5,8 @@ type MemStorage interface {
 	GetGaugeMetric(string) (float64, bool)
 	UpdateGaugeMetric(string, float64)
 	UpdateCounterMetric(string, int)
+	GetAllCounterMetrics() map[string]int
+	GetAllGaugeMetrics() map[string]float64
 }
 
 type MemStorageImp struct {
@@ -38,4 +40,12 @@ func (s *MemStorageImp) UpdateGaugeMetric(metricName string, value float64) {
 
 func (s *MemStorageImp) UpdateCounterMetric(metricName string, value int) {
 	s.counters[metricName] += value
+}
+
+func (s *MemStorageImp) GetAllCounterMetrics() map[string]int {
+	return s.counters
+}
+
+func (s *MemStorageImp) GetAllGaugeMetrics() map[string]float64 {
+	return s.gauges
 }

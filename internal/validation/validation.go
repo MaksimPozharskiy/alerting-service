@@ -21,4 +21,5 @@ var ErrMap = map[error]int{
 }
 
 var ValidMetricTypes = []string{models.CounterMetric, models.GaugeMetric}
-var ValidCountURLParts = 5
+var ValidCountUpdateURLParts = 5
+var ValidCountGetURLParts = 4

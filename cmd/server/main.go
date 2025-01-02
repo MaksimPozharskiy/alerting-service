@@ -5,7 +5,8 @@ import (
 	repositories "alerting-service/internal/repository"
 	"alerting-service/internal/server"
 	"alerting-service/internal/usecases"
-	"net/http"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func main() {
@@ -15,10 +16,21 @@ func main() {
 
 	server := server.NewServer("8080")
 
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/update/`, metricsHandler.UpdateMetric)
+	r := chi.NewRouter()
 
-	err := server.Start(mux)
+	r.Route("/update", func(r chi.Router) {
+		r.Post("/{metricType}/{metricName}/{metricValue}", metricsHandler.UpdateMetric)
+	})
+
+	r.Route("/value", func(r chi.Router) {
+		r.Get("/{metricType}/{metricName}", metricsHandler.GetMetric)
+	})
+
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", metricsHandler.GetAllMetrics)
+	})
+
+	err := server.Start(r)
 	if err != nil {
 		panic(err)
 	}

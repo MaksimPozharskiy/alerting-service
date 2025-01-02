@@ -2,10 +2,12 @@ package server
 
 import (
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type Server interface {
-	Start(*http.ServeMux) error
+	Start(*chi.Mux) error
 }
 
 type ServerImpl struct {
@@ -20,7 +22,7 @@ func NewServer(port string) Server {
 	}
 }
 
-func (s *ServerImpl) Start(mux *http.ServeMux) error {
+func (s *ServerImpl) Start(mux *chi.Mux) error {
 	if err := http.ListenAndServe(s.httpServer.Addr, mux); err != http.ErrServerClosed {
 		return err
 	}
