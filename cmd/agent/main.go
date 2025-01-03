@@ -6,9 +6,11 @@ import (
 )
 
 func main() {
+	parseFlags()
+
 	client := &http.Client{
 		Transport: &http.Transport{},
 	}
 
-	agent.RuntimeAgent(client)
+	agent.RuntimeAgent(client, flagPollInterval, flagReportInterval, flagRunAddr)
 }

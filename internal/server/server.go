@@ -14,10 +14,10 @@ type ServerImpl struct {
 	httpServer http.Server
 }
 
-func NewServer(port string) Server {
+func NewServer(addr string) Server {
 	return &ServerImpl{
 		httpServer: http.Server{
-			Addr: ":" + port,
+			Addr: addr,
 		},
 	}
 }

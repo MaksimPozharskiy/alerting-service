@@ -10,11 +10,13 @@ import (
 )
 
 func main() {
+	parseFlags()
+
 	storageRepository := repositories.NewStorageRepository()
 	metricUsecase := usecases.NewMetricUsecase(storageRepository)
 	metricsHandler := handlers.NewMetricHandler(metricUsecase)
 
-	server := server.NewServer("8080")
+	server := server.NewServer(flagRunAddr)
 
 	r := chi.NewRouter()
 
