@@ -1,8 +1,8 @@
 package usecases
 
 import (
+	"alerting-service/internal/domain"
 	repositories "alerting-service/internal/repository"
-	"fmt"
 	"strconv"
 
 	v "alerting-service/internal/validation"
@@ -12,7 +12,7 @@ const counterMetric = "counter"
 const gaugeMetric = "gauge"
 
 type MetricUsecase interface {
-	MetricDataProcessing(string, string, string) error
+	MetricDataProcessing(domain.Metric) error
 	GetMetricDataProcessing(string, string) (float64, error)
 	GetAllMetricsProcessing() map[string]string
 }
@@ -27,21 +27,21 @@ func NewMetricUsecase(storageRepository repositories.MemStorage) MetricUsecase {
 	}
 }
 
-func (usecase *MetricUsecaseImpl) MetricDataProcessing(metricType, metricName, valueStr string) error {
-	metricValue, err := strconv.ParseFloat(valueStr, 64)
+func (usecase *MetricUsecaseImpl) MetricDataProcessing(metric domain.Metric) error {
+	metricValue, err := strconv.ParseFloat(metric.Value, 64)
 	if err != nil {
 		return v.ErrInvalidMetricValue
 	}
 
-	switch metricType {
+	switch metric.Type {
 	case counterMetric:
-		if value, err := strconv.Atoi(valueStr); err == nil {
-			usecase.storageRepository.UpdateCounterMetric(metricName, value)
+		if value, err := strconv.Atoi(metric.Value); err == nil {
+			usecase.storageRepository.UpdateCounterMetric(metric.Name, value)
 		} else {
 			return v.ErrInvalidMetricValue
 		}
 	case gaugeMetric:
-		usecase.storageRepository.UpdateGaugeMetric(metricName, metricValue)
+		usecase.storageRepository.UpdateGaugeMetric(metric.Name, metricValue)
 	}
 
 	return nil
@@ -76,7 +76,7 @@ func (usecase *MetricUsecaseImpl) GetAllMetricsProcessing() map[string]string {
 	}
 
 	for key, value := range counter {
-		allMetrics[key] = fmt.Sprint(value)
+		allMetrics[key] = strconv.Itoa(value)
 	}
 
 	return allMetrics

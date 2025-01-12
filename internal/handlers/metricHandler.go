@@ -30,7 +30,7 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	err = handler.metricUsecase.MetricDataProcessing(metric.Type, metric.Name, metric.Value)
+	err = handler.metricUsecase.MetricDataProcessing(metric)
 	if err != nil {
 		handleError(w, err)
 		return
