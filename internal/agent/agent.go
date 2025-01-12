@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"alerting-service/internal/config"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -12,7 +13,9 @@ var pollCount int
 
 type stats map[string]float64
 
-func RuntimeAgent(client *http.Client, pollInterval, reportInterval int, adress string) {
+func RuntimeAgent(client *http.Client) {
+	conf := config.GetConfig()
+
 	memStat := &runtime.MemStats{}
 
 	runtime.ReadMemStats(memStat)
@@ -21,18 +24,18 @@ func RuntimeAgent(client *http.Client, pollInterval, reportInterval int, adress 
 
 	go func() {
 		for {
-			time.Sleep(time.Duration(pollInterval) * time.Second)
+			time.Sleep(time.Duration(conf.PollInterval) * time.Second)
 			pollCount++
+			runtime.ReadMemStats(memStat)
 			getMemStatData(memStat, stats)
-
 		}
 	}()
 
 	go func() {
 		for {
-			time.Sleep(time.Duration(reportInterval) * time.Second)
+			time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
 			stats["RandomValue"] = rand.Float64()
-			sendMetrics(client, stats, adress)
+			sendMetrics(client, stats, conf.RunAddr)
 		}
 	}()
 
@@ -69,18 +72,16 @@ func getMemStatData(memStat *runtime.MemStats, stats stats) {
 	stats["TotalAlloc"] = float64(memStat.TotalAlloc)
 }
 
-func sendMetrics(client *http.Client, stats stats, adress string) {
-
+func sendMetrics(client *http.Client, stats stats, address string) {
 	for key, val := range stats {
-		fmt.Println(key, val)
-		sendGaugeMetric(client, key, val, adress)
+		sendGaugeMetric(client, key, val, address)
 	}
 
-	sendCounterMetric(client, "PollCount", pollCount, adress)
+	sendCounterMetric(client, "PollCount", pollCount, address)
 }
 
-func sendGaugeMetric(client *http.Client, metricName string, metricValue float64, adress string) {
-	url := fmt.Sprintf("http://%s/update/gauge/%s/%f/", adress, metricName, metricValue)
+func sendGaugeMetric(client *http.Client, metricName string, metricValue float64, address string) {
+	url := fmt.Sprintf("http://%s/update/gauge/%s/%f/", address, metricName, metricValue)
 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
@@ -98,8 +99,8 @@ func sendGaugeMetric(client *http.Client, metricName string, metricValue float64
 	defer response.Body.Close()
 }
 
-func sendCounterMetric(client *http.Client, metricName string, metricValue int, adress string) {
-	url := fmt.Sprintf("http://%s/update/counter/%s/%d/", adress, metricName, metricValue)
+func sendCounterMetric(client *http.Client, metricName string, metricValue int, address string) {
+	url := fmt.Sprintf("http://%s/update/counter/%s/%d/", address, metricName, metricValue)
 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {

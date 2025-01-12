@@ -7,19 +7,19 @@ import (
 )
 
 func TestNewServer(t *testing.T) {
-	adress := "localhost:8080"
+	address := "localhost:8080"
 
 	tests := []struct {
-		name   string
-		want   Server
-		adress string
+		name    string
+		want    Server
+		address string
 	}{
 		{
-			name:   "new server test",
-			adress: adress,
+			name:    "new server test",
+			address: address,
 			want: &ServerImpl{
 				httpServer: http.Server{
-					Addr: adress,
+					Addr: address,
 				},
 			},
 		},
@@ -27,7 +27,7 @@ func TestNewServer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			want := NewServer(test.adress)
+			want := NewServer(test.address)
 
 			if !reflect.DeepEqual(want, test.want) {
 				t.Errorf("want: %v, got: %v", test.want, want)

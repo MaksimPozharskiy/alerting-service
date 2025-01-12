@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"flag"
@@ -6,11 +6,17 @@ import (
 	"strconv"
 )
 
-var flagRunAddr string
-var flagReportInterval int
-var flagPollInterval int
+type Config struct {
+	RunAddr        string
+	ReportInterval int
+	PollInterval   int
+}
 
-func parseFlags() {
+func GetConfig() *Config {
+	var flagRunAddr string
+	var flagPollInterval int
+	var flagReportInterval int
+
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port for sending server")
 	flag.IntVar(&flagPollInterval, "p", 2, "how often to get metrics from runtime, seconds")
 	flag.IntVar(&flagReportInterval, "r", 10, "how often to send metrics to server, seconds")
@@ -30,5 +36,11 @@ func parseFlags() {
 		if envPollInterval, err := strconv.Atoi(envPollInterval); err == nil {
 			flagReportInterval = envPollInterval
 		}
+	}
+
+	return &Config{
+		RunAddr:        flagRunAddr,
+		ReportInterval: flagReportInterval,
+		PollInterval:   flagPollInterval,
 	}
 }
