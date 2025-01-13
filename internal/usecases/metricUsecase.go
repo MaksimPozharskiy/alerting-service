@@ -14,7 +14,7 @@ const gaugeMetric = "gauge"
 type MetricUsecase interface {
 	MetricDataProcessing(domain.Metric) error
 	GetMetricDataProcessing(string, string) (float64, error)
-	GetAllMetricsProcessing() map[string]string
+	GetMetrics() map[string]string
 }
 
 type MetricUsecaseImpl struct {
@@ -65,19 +65,6 @@ func (usecase *MetricUsecaseImpl) GetMetricDataProcessing(metricType, metricName
 	return 0, v.ErrInvalidMetricValue
 }
 
-func (usecase *MetricUsecaseImpl) GetAllMetricsProcessing() map[string]string {
-	allMetrics := make(map[string]string)
-
-	gauges := usecase.storageRepository.GetAllGaugeMetrics()
-	counter := usecase.storageRepository.GetAllCounterMetrics()
-
-	for key, value := range gauges {
-		allMetrics[key] = strconv.FormatFloat(value, 'f', -1, 64)
-	}
-
-	for key, value := range counter {
-		allMetrics[key] = strconv.Itoa(value)
-	}
-
-	return allMetrics
+func (usecase *MetricUsecaseImpl) GetMetrics() map[string]string {
+	return usecase.storageRepository.GetMetrics()
 }

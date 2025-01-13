@@ -71,7 +71,7 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	allMetrics := handler.metricUsecase.GetAllMetricsProcessing()
+	allMetrics := handler.metricUsecase.GetMetrics()
 
 	w.Header().Set("Content-type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
