@@ -31,15 +31,11 @@ func RuntimeAgent(client *http.Client) {
 		}
 	}()
 
-	go func() {
-		for {
-			time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
-			stats["RandomValue"] = rand.Float64()
-			sendMetrics(client, stats, conf.RunAddr)
-		}
-	}()
-
-	select {}
+	for {
+		time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
+		stats["RandomValue"] = rand.Float64()
+		sendMetrics(client, stats, conf.RunAddr)
+	}
 }
 
 func getMemStatData(memStat *runtime.MemStats, stats stats) {

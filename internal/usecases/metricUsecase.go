@@ -28,20 +28,19 @@ func NewMetricUsecase(storageRepository repositories.MemStorage) MetricUsecase {
 }
 
 func (usecase *MetricUsecaseImpl) MetricDataProcessing(metric domain.Metric) error {
-	metricValue, err := strconv.ParseFloat(metric.Value, 64)
-	if err != nil {
-		return v.ErrInvalidMetricValue
-	}
-
 	switch metric.Type {
 	case counterMetric:
-		if value, err := strconv.Atoi(metric.Value); err == nil {
-			usecase.storageRepository.UpdateCounterMetric(metric.Name, value)
-		} else {
+		value, err := strconv.Atoi(metric.Value)
+		if err != nil {
 			return v.ErrInvalidMetricValue
 		}
+		usecase.storageRepository.UpdateCounterMetric(metric.Name, value)
 	case gaugeMetric:
-		usecase.storageRepository.UpdateGaugeMetric(metric.Name, metricValue)
+		value, err := strconv.ParseFloat(metric.Value, 64)
+		if err != nil {
+			return v.ErrInvalidMetricValue
+		}
+		usecase.storageRepository.UpdateGaugeMetric(metric.Name, value)
 	}
 
 	return nil

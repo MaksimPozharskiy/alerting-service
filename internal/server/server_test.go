@@ -35,32 +35,3 @@ func TestNewServer(t *testing.T) {
 		})
 	}
 }
-
-// @TODO Не понял как написать тест на Start
-// func TestStart(t *testing.T) {
-// 	mux := http.NewServeMux()
-
-// 	tests := []struct {
-// 		name string
-// 	}{
-// 		{
-// 			name: "start server test",
-// 		},
-// 	}
-
-// 	for _, test := range tests {
-// 		t.Run(test.name, func(t *testing.T) {
-// 			server := NewServer("8080")
-// 			go func() {
-// 				time.Sleep(1 * time.Second)
-// 				panic("")
-// 			}()
-
-// 			err := server.Start(mux)
-
-// 			if err != nil {
-// 				t.Error("unexpected error:", err)
-// 			}
-// 		})
-// 	}
-// }
