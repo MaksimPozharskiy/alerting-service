@@ -27,11 +27,11 @@ func (lrw *loggerResponseWriter) WriteHeader(code int) {
 	lrw.ResponseWriter.WriteHeader(code)
 }
 
-func (r *loggerResponseWriter) Write(body []byte) (int, error) {
+func (lrw *loggerResponseWriter) Write(body []byte) (int, error) {
 	var err error
-	r.size, err = r.ResponseWriter.Write(body)
+	lrw.size, err = lrw.ResponseWriter.Write(body)
 
-	return r.size, err
+	return lrw.size, err
 }
 
 func Initialize(level string) error {
