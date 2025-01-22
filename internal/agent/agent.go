@@ -2,10 +2,13 @@ package agent
 
 import (
 	"alerting-service/internal/config"
+	"alerting-service/internal/models"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -70,40 +73,39 @@ func getMemStatData(memStat *runtime.MemStats, stats stats) {
 
 func sendMetrics(client *http.Client, stats stats, address string) {
 	for key, val := range stats {
-		sendGaugeMetric(client, key, val, address)
+		metric := models.Metrics{
+			ID:    key,
+			MType: "gauge",
+			Value: &val,
+		}
+
+		sendMetric(client, metric, address)
 	}
 
-	sendCounterMetric(client, "PollCount", pollCount, address)
+	pollCount := int64(pollCount)
+	metric := models.Metrics{
+		ID:    "PollCount",
+		MType: "counter",
+		Delta: &pollCount,
+	}
+	sendMetric(client, metric, address)
 }
 
-func sendGaugeMetric(client *http.Client, metricName string, metricValue float64, address string) {
-	url := fmt.Sprintf("http://%s/update/gauge/%s/%f/", address, metricName, metricValue)
+func sendMetric(client *http.Client, metric models.Metrics, address string) {
+	url := fmt.Sprintf("http://%s/update/", address)
 
-	req, err := http.NewRequest("POST", url, nil)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-	req.Header.Set("Content-type", "text/plain; charset=utf-8")
-
-	response, err := client.Do(req)
+	body, err := json.Marshal(metric)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
 
-	defer response.Body.Close()
-}
-
-func sendCounterMetric(client *http.Client, metricName string, metricValue int, address string) {
-	url := fmt.Sprintf("http://%s/update/counter/%s/%d/", address, metricName, metricValue)
-
-	req, err := http.NewRequest("POST", url, nil)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(body)))
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
-	req.Header.Set("Content-type", "text/plain; charset=utf-8")
+	req.Header.Set("Content-type", "application/json")
 
 	response, err := client.Do(req)
 	if err != nil {

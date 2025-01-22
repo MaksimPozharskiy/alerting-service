@@ -1,9 +1,8 @@
 package usecases
 
 import (
-	"alerting-service/internal/domain"
+	"alerting-service/internal/models"
 	repositories "alerting-service/internal/repository"
-	"strconv"
 
 	v "alerting-service/internal/validation"
 )
@@ -12,8 +11,8 @@ const counterMetric = "counter"
 const gaugeMetric = "gauge"
 
 type MetricUsecase interface {
-	MetricDataProcessing(domain.Metric) error
-	GetMetricDataProcessing(string, string) (float64, error)
+	MetricDataProcessing(models.Metrics) error
+	GetMetricDataProcessing(models.Metrics) (float64, error)
 	GetMetrics() map[string]string
 }
 
@@ -27,35 +26,27 @@ func NewMetricUsecase(storageRepository repositories.MemStorage) MetricUsecase {
 	}
 }
 
-func (usecase *MetricUsecaseImpl) MetricDataProcessing(metric domain.Metric) error {
-	switch metric.Type {
+func (usecase *MetricUsecaseImpl) MetricDataProcessing(metric models.Metrics) error {
+	switch metric.MType {
 	case counterMetric:
-		value, err := strconv.Atoi(metric.Value)
-		if err != nil {
-			return v.ErrInvalidMetricValue
-		}
-		usecase.storageRepository.UpdateCounterMetric(metric.Name, value)
+		usecase.storageRepository.UpdateCounterMetric(metric.ID, int(*metric.Delta))
 	case gaugeMetric:
-		value, err := strconv.ParseFloat(metric.Value, 64)
-		if err != nil {
-			return v.ErrInvalidMetricValue
-		}
-		usecase.storageRepository.UpdateGaugeMetric(metric.Name, value)
+		usecase.storageRepository.UpdateGaugeMetric(metric.ID, *metric.Value)
 	}
 
 	return nil
 }
 
-func (usecase *MetricUsecaseImpl) GetMetricDataProcessing(metricType, metricName string) (float64, error) {
-	switch metricType {
+func (usecase *MetricUsecaseImpl) GetMetricDataProcessing(metric models.Metrics) (float64, error) {
+	switch metric.MType {
 	case counterMetric:
-		if value, ok := usecase.storageRepository.GetCounterMetric(metricName); ok {
+		if value, ok := usecase.storageRepository.GetCounterMetric(metric.ID); ok {
 			return float64(value), nil
 		} else {
 			return 0, v.ErrMetricNotFound
 		}
 	case gaugeMetric:
-		if value, ok := usecase.storageRepository.GetGaugeMetric(metricName); ok {
+		if value, ok := usecase.storageRepository.GetGaugeMetric(metric.ID); ok {
 			return value, nil
 		} else {
 			return 0, v.ErrMetricNotFound
