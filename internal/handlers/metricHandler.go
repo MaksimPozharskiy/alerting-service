@@ -4,6 +4,7 @@ import (
 	"alerting-service/internal/logger"
 	"alerting-service/internal/models"
 	"alerting-service/internal/usecases"
+	"alerting-service/internal/utils"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -30,22 +31,29 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Reques
 	logger.Log.Debug("decoding request")
 	var req models.Metrics
 
+	var metric models.Metrics
+
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
+	err := dec.Decode(&req)
+
+	if err != nil {
 		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	metric := models.Metrics{
-		ID:    req.ID,
-		MType: req.MType,
-	}
-
-	if req.MType == "gauge" {
-		metric.Value = req.Value
+		metric, err = utils.ParseUpdateMetricURL(r.URL.Path)
+		if err != nil {
+			handleError(w, err)
+			return
+		}
 	} else {
-		metric.Delta = req.Delta
+		metric = models.Metrics{
+			ID:    req.ID,
+			MType: req.MType,
+		}
+
+		if req.MType == "gauge" {
+			metric.Value = req.Value
+		} else {
+			metric.Delta = req.Delta
+		}
 	}
 
 	handler.metricUsecase.MetricDataProcessing(metric)
@@ -61,18 +69,23 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) 
 	}
 
 	logger.Log.Debug("decoding request")
-	var req models.Metrics
+	var metric models.Metrics
 
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
-		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	err := dec.Decode(&r)
 
-	metric := models.Metrics{
-		ID:    req.ID,
-		MType: req.MType,
+	if err != nil {
+		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
+		metric, err = utils.ParseGetMetricURL(r.URL.Path)
+		if err != nil {
+			handleError(w, err)
+			return
+		}
+	} else {
+		metric = models.Metrics{
+			ID:    metric.ID,
+			MType: metric.MType,
+		}
 	}
 
 	value, err := handler.metricUsecase.GetMetricDataProcessing(metric)
@@ -90,10 +103,13 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(metric); err != nil {
-		logger.Log.Debug("error encoding response", zap.Error(err))
-		return
+
+	if metric.MType == "gauge" {
+		v := *metric.Value
+		w.Write([]byte(fmt.Sprint(v)))
+	} else {
+		v := *metric.Delta
+		w.Write([]byte(fmt.Sprint(v)))
 	}
 	logger.Log.Debug("sending HTTP 200 response")
 }

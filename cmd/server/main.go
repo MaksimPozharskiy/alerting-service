@@ -28,11 +28,11 @@ func main() {
 	r.Use(logger.RequestLogger)
 
 	r.Route("/update", func(r chi.Router) {
-		r.Post("/", metricsHandler.UpdateMetric)
+		r.Post("/{metricType}/{metricName}/{metricValue}", metricsHandler.UpdateMetric)
 	})
 
 	r.Route("/value", func(r chi.Router) {
-		r.Get("/", metricsHandler.GetMetric)
+		r.Get("/{metricType}/{metricName}", metricsHandler.GetMetric)
 	})
 
 	r.Route("/", func(r chi.Router) {

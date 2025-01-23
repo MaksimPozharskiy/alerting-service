@@ -79,7 +79,7 @@ func sendMetrics(client *http.Client, stats stats, address string) {
 			Value: &val,
 		}
 
-		sendMetric(client, metric, address)
+		sendGaugeMetric(client, metric, address)
 	}
 
 	pollCount := int64(pollCount)
@@ -88,11 +88,37 @@ func sendMetrics(client *http.Client, stats stats, address string) {
 		MType: "counter",
 		Delta: &pollCount,
 	}
-	sendMetric(client, metric, address)
+	sendCounterMetric(client, metric, address)
 }
 
-func sendMetric(client *http.Client, metric models.Metrics, address string) {
-	url := fmt.Sprintf("http://%s/update/", address)
+func sendGaugeMetric(client *http.Client, metric models.Metrics, address string) {
+	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", address, metric.ID, *metric.Value)
+
+	body, err := json.Marshal(metric)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(body)))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	req.Header.Set("Content-type", "application/json")
+
+	response, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	defer response.Body.Close()
+}
+
+func sendCounterMetric(client *http.Client, metric models.Metrics, address string) {
+	url := fmt.Sprintf("http://%s/update/counter/%s/%d", address, metric.ID, *metric.Delta)
 
 	body, err := json.Marshal(metric)
 	if err != nil {
