@@ -3,8 +3,11 @@ package agent
 import (
 	"alerting-service/internal/config"
 	"alerting-service/internal/models"
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"runtime"
@@ -100,12 +103,22 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, address string)
 		return
 	}
 
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(body)))
+	var buf bytes.Buffer
+	g := gzip.NewWriter(&buf)
+
+	_, err = io.Copy(g, strings.NewReader(string(body)))
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
 
+	req, err := http.NewRequest("POST", url, &buf)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-type", "application/json")
 
 	response, err := client.Do(req)
@@ -126,11 +139,21 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, address strin
 		return
 	}
 
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(body)))
+	var buf bytes.Buffer
+	g := gzip.NewWriter(&buf)
+
+	_, err = io.Copy(g, strings.NewReader(string(body)))
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
+
+	req, err := http.NewRequest("POST", url, &buf)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-type", "application/json")
 
 	response, err := client.Do(req)

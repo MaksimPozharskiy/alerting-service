@@ -158,7 +158,7 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 
 	allMetrics := handler.metricUsecase.GetMetrics()
 
-	w.Header().Set("Content-type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
 	for key, value := range allMetrics {

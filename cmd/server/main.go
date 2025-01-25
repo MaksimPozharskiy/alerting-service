@@ -1,6 +1,7 @@
 package main
 
 import (
+	"alerting-service/internal/compressor"
 	handlers "alerting-service/internal/handlers"
 	"alerting-service/internal/logger"
 	repositories "alerting-service/internal/repository"
@@ -26,6 +27,7 @@ func main() {
 
 	r.Use(logger.ResponseLogger)
 	r.Use(logger.RequestLogger)
+	r.Use(compressor.GzipMiddleware)
 
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", metricsHandler.UpdateMetric)
