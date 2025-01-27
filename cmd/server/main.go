@@ -4,9 +4,12 @@ import (
 	"alerting-service/internal/compressor"
 	handlers "alerting-service/internal/handlers"
 	"alerting-service/internal/logger"
+	"alerting-service/internal/metrics"
 	repositories "alerting-service/internal/repository"
 	"alerting-service/internal/server"
 	"alerting-service/internal/usecases"
+	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -49,7 +52,35 @@ func main() {
 		r.Get("/", metricsHandler.GetAllMetrics)
 	})
 
-	err := server.Start(r)
+	backupController, err := metrics.NewBackupController("./test.json")
+	if err != nil {
+		panic(err)
+	}
+
+	allMetrics, err := backupController.ReadMetric()
+	storageRepository.SetMetrics(allMetrics)
+
+	go func() {
+		for {
+			time.Sleep(time.Duration(5) * time.Second)
+
+			if err := os.Truncate("./test.json", 0); err != nil {
+				panic(err)
+			}
+
+			allMetrics := storageRepository.GetMetrics()
+
+			err = backupController.WriteMetrics(allMetrics)
+
+			if err != nil {
+				panic(err)
+			}
+
+		}
+	}()
+
+	err = server.Start(r)
+
 	if err != nil {
 		panic(err)
 	}

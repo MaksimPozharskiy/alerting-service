@@ -13,7 +13,7 @@ const gaugeMetric = "gauge"
 type MetricUsecase interface {
 	MetricDataProcessing(models.Metrics) error
 	GetMetricDataProcessing(models.Metrics) (float64, error)
-	GetMetrics() map[string]string
+	GetMetrics() []models.Metrics
 }
 
 type MetricUsecaseImpl struct {
@@ -55,6 +55,6 @@ func (usecase *MetricUsecaseImpl) GetMetricDataProcessing(metric models.Metrics)
 	return 0, v.ErrInvalidMetricValue
 }
 
-func (usecase *MetricUsecaseImpl) GetMetrics() map[string]string {
+func (usecase *MetricUsecaseImpl) GetMetrics() []models.Metrics {
 	return usecase.storageRepository.GetMetrics()
 }

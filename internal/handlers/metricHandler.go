@@ -161,8 +161,13 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 	w.Header().Set("Content-type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	for key, value := range allMetrics {
-		w.Write([]byte(fmt.Sprintf("%s: %s\n", key, value)))
+	for _, metric := range allMetrics {
+		mType := metric.MType
+		if mType == "gauge" {
+			w.Write([]byte(fmt.Sprintf("%s: %f\n", metric.ID, *metric.Value)))
+		} else {
+			w.Write([]byte(fmt.Sprintf("%s: %d\n", metric.ID, *metric.Delta)))
+		}
 	}
 }
 
