@@ -42,7 +42,7 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Reques
 		MType: req.MType,
 	}
 
-	if req.MType == "gauge" {
+	if req.MType == models.GaugeMetric {
 		metric.Value = req.Value
 	} else {
 		metric.Delta = req.Delta
@@ -87,7 +87,7 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if metric.MType == "gauge" {
+	if metric.MType == models.GaugeMetric {
 		metric.Value = &value
 	} else {
 		val := int64(value)
@@ -163,7 +163,7 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 
 	for _, metric := range allMetrics {
 		mType := metric.MType
-		if mType == "gauge" {
+		if mType == models.GaugeMetric {
 			w.Write([]byte(fmt.Sprintf("%s: %f\n", metric.ID, *metric.Value)))
 		} else {
 			w.Write([]byte(fmt.Sprintf("%s: %d\n", metric.ID, *metric.Delta)))

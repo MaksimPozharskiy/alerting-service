@@ -4,21 +4,12 @@ import (
 	"alerting-service/internal/models"
 )
 
-type MemStorage interface {
-	GetCounterMetric(string) (int, bool)
-	GetGaugeMetric(string) (float64, bool)
-	UpdateGaugeMetric(string, float64)
-	UpdateCounterMetric(string, int)
-	GetMetrics() []models.Metrics
-	SetMetrics([]models.Metrics)
-}
-
 type MemStorageImp struct {
 	gauges   map[string]float64
 	counters map[string]int
 }
 
-func NewStorageRepository() MemStorage {
+func NewStorageRepository() *MemStorageImp {
 	return &MemStorageImp{gauges: map[string]float64{}, counters: map[string]int{}}
 }
 
@@ -76,7 +67,7 @@ func (s *MemStorageImp) GetMetrics() []models.Metrics {
 
 func (s *MemStorageImp) SetMetrics(allMetrics []models.Metrics) {
 	for _, metric := range allMetrics {
-		if metric.MType == "gauge" {
+		if metric.MType == models.GaugeMetric {
 			s.gauges[metric.ID] = *metric.Value
 		} else {
 			s.counters[metric.ID] = int(*metric.Delta)

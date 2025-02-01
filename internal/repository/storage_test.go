@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"alerting-service/internal/usecases"
 	"reflect"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 func TestNewStorageRepository(t *testing.T) {
 	tests := []struct {
 		name string
-		want MemStorage
+		want usecases.MemStorage
 	}{
 		{
 			name: "new repository test",

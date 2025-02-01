@@ -28,29 +28,10 @@ func NewBackupController(filename string) (*BackupController, error) {
 }
 
 func (b *BackupController) WriteMetric(metric models.Metrics) error {
-	file, err := b.file.Stat()
-	if err != nil {
-		return err
-	}
-
-	isFirstMetric := file.Size() == 1
-
-	if !isFirstMetric {
-		_, err := b.file.WriteString(",")
-		if err != nil {
-			return err
-		}
-	}
-
 	return b.encoder.Encode(&metric)
 }
 
 func (b *BackupController) WriteMetrics(metrics []models.Metrics) error {
-	_, err := b.file.WriteString("[")
-	if err != nil {
-		return err
-	}
-
 	for _, metric := range metrics {
 		err := b.WriteMetric(metric)
 		if err != nil {
@@ -58,19 +39,29 @@ func (b *BackupController) WriteMetrics(metrics []models.Metrics) error {
 		}
 	}
 
-	_, err = b.file.WriteString("]")
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (b *BackupController) ReadMetric() ([]models.Metrics, error) {
-	allMetricss := []models.Metrics{}
-	if err := b.decoder.Decode(&allMetricss); err != nil && err != io.EOF {
-		return nil, err
+func (b *BackupController) ReadMetrics() ([]models.Metrics, error) {
+	allMetrics := []models.Metrics{}
+
+	for b.decoder.More() {
+		metric, err := b.ReadMetric()
+		if err != nil {
+			return nil, err
+		}
+
+		allMetrics = append(allMetrics, metric)
 	}
 
-	return allMetricss, nil
+	return allMetrics, nil
+}
+
+func (b *BackupController) ReadMetric() (models.Metrics, error) {
+	metric := models.Metrics{}
+	if err := b.decoder.Decode(&metric); err != nil && err != io.EOF {
+		return models.Metrics{}, err
+	}
+
+	return metric, nil
 }

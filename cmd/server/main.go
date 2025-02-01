@@ -57,7 +57,7 @@ func main() {
 		panic(err)
 	}
 
-	allMetrics, err := backupController.ReadMetric()
+	allMetrics, err := backupController.ReadMetrics()
 	storageRepository.SetMetrics(allMetrics)
 
 	go func() {

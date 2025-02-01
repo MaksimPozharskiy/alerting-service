@@ -25,7 +25,7 @@ func ParseUpdateMetricURL(url string) (models.Metrics, error) {
 
 	m.MType = metricType
 	m.ID = urlData[3]
-	if m.MType == "gauge" {
+	if m.MType == models.GaugeMetric {
 		value, err := strconv.ParseFloat(urlData[4], 64)
 		if err != nil {
 			return m, v.ErrInvalidMetricValue
