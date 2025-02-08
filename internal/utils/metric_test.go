@@ -1,40 +1,45 @@
 package utils
 
 import (
-	"alerting-service/internal/domain"
+	"alerting-service/internal/models"
 	v "alerting-service/internal/validation"
+	"reflect"
 	"testing"
 )
 
 func TestParseUpdateMetricURL(t *testing.T) {
+	testValue := 25.5
+	testValuePtr := &testValue
+	testDelta := int64(25)
+	testDeltaPtr := &testDelta
 	tests := []struct {
 		name     string
 		inputURL string
-		want     domain.Metric
+		want     models.Metrics
 		wantErr  error
 	}{
 		{
 			name:     "valid gauge metric url test",
 			inputURL: "/update/gauge/temperature/25.5",
-			want:     domain.Metric{Type: "gauge", Name: "temperature", Value: "25.5"},
+			want:     models.Metrics{MType: "gauge", ID: "temperature", Value: testValuePtr},
 			wantErr:  nil,
 		},
 		{
 			name:     "valid counter metric url test",
 			inputURL: "/update/counter/temperature/25",
-			want:     domain.Metric{Type: "counter", Name: "temperature", Value: "25"},
+			want:     models.Metrics{MType: "counter", ID: "temperature", Delta: testDeltaPtr},
 			wantErr:  nil,
 		},
 		{
 			name:     "invalid metric url test",
 			inputURL: "/update/cter/temperature/25",
-			want:     domain.Metric{},
+			want:     models.Metrics{},
 			wantErr:  v.ErrInvalidMetricType,
 		},
 		{
 			name:     "not found metric url test",
 			inputURL: "/update/gauge/temperature",
-			want:     domain.Metric{},
+			want:     models.Metrics{},
 			wantErr:  v.ErrMetricNotFound,
 		},
 	}
@@ -47,7 +52,7 @@ func TestParseUpdateMetricURL(t *testing.T) {
 				t.Errorf("want error: %v, got: %v", test.wantErr, wantErr)
 			}
 
-			if want.Type != test.want.Type || want.Name != test.want.Name || want.Value != test.want.Value {
+			if !reflect.DeepEqual(want, test.want) {
 				t.Errorf("want: %+v, got: %+v", test.want, want)
 			}
 		})

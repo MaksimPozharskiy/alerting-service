@@ -2,10 +2,16 @@ package agent
 
 import (
 	"alerting-service/internal/config"
+	"alerting-service/internal/models"
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -70,21 +76,50 @@ func getMemStatData(memStat *runtime.MemStats, stats stats) {
 
 func sendMetrics(client *http.Client, stats stats, address string) {
 	for key, val := range stats {
-		sendGaugeMetric(client, key, val, address)
+		metric := models.Metrics{
+			ID:    key,
+			MType: "gauge",
+			Value: &val,
+		}
+
+		sendGaugeMetric(client, metric, address)
 	}
 
-	sendCounterMetric(client, "PollCount", pollCount, address)
+	pollCount := int64(pollCount)
+	metric := models.Metrics{
+		ID:    "PollCount",
+		MType: "counter",
+		Delta: &pollCount,
+	}
+	sendCounterMetric(client, metric, address)
 }
 
-func sendGaugeMetric(client *http.Client, metricName string, metricValue float64, address string) {
-	url := fmt.Sprintf("http://%s/update/gauge/%s/%f/", address, metricName, metricValue)
+func sendGaugeMetric(client *http.Client, metric models.Metrics, address string) {
+	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", address, metric.ID, *metric.Value)
 
-	req, err := http.NewRequest("POST", url, nil)
+	body, err := json.Marshal(metric)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
-	req.Header.Set("Content-type", "text/plain; charset=utf-8")
+
+	var buf bytes.Buffer
+	g := gzip.NewWriter(&buf)
+
+	_, err = io.Copy(g, strings.NewReader(string(body)))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", url, &buf)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	req.Header.Add("Accept-Encoding", "gzip")
+	req.Header.Set("Content-type", "application/json")
 
 	response, err := client.Do(req)
 	if err != nil {
@@ -95,15 +130,31 @@ func sendGaugeMetric(client *http.Client, metricName string, metricValue float64
 	defer response.Body.Close()
 }
 
-func sendCounterMetric(client *http.Client, metricName string, metricValue int, address string) {
-	url := fmt.Sprintf("http://%s/update/counter/%s/%d/", address, metricName, metricValue)
+func sendCounterMetric(client *http.Client, metric models.Metrics, address string) {
+	url := fmt.Sprintf("http://%s/update/counter/%s/%d", address, metric.ID, *metric.Delta)
 
-	req, err := http.NewRequest("POST", url, nil)
+	body, err := json.Marshal(metric)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
-	req.Header.Set("Content-type", "text/plain; charset=utf-8")
+
+	var buf bytes.Buffer
+	g := gzip.NewWriter(&buf)
+
+	_, err = io.Copy(g, strings.NewReader(string(body)))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", url, &buf)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	req.Header.Add("Accept-Encoding", "gzip")
+	req.Header.Set("Content-type", "application/json")
 
 	response, err := client.Do(req)
 	if err != nil {

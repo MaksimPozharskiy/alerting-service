@@ -1,16 +1,28 @@
 package main
 
 import (
+	"alerting-service/internal/compressor"
 	handlers "alerting-service/internal/handlers"
+	"alerting-service/internal/logger"
+	"alerting-service/internal/metrics"
 	repositories "alerting-service/internal/repository"
 	"alerting-service/internal/server"
 	"alerting-service/internal/usecases"
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
 func main() {
-	parseFlags()
+	err := parseFlags()
+	if err != nil {
+		panic(err)
+	}
 
 	storageRepository := repositories.NewStorageRepository()
 	metricUsecase := usecases.NewMetricUsecase(storageRepository)
@@ -19,21 +31,89 @@ func main() {
 	server := server.NewServer(flagRunAddr)
 
 	r := chi.NewRouter()
+	if err := logger.Initialize(flagLogLevel); err != nil {
+		panic(err)
+	}
+
+	r.Use(logger.ResponseLogger)
+	r.Use(logger.RequestLogger)
+	r.Use(compressor.GzipMiddleware)
 
 	r.Route("/update", func(r chi.Router) {
-		r.Post("/{metricType}/{metricName}/{metricValue}", metricsHandler.UpdateMetric)
+		r.Post("/", metricsHandler.UpdateMetric)
 	})
 
 	r.Route("/value", func(r chi.Router) {
-		r.Get("/{metricType}/{metricName}", metricsHandler.GetMetric)
+		r.Post("/", metricsHandler.GetMetric)
+	})
+
+	r.Route("/update/{metricType}/{metricName}/{metricValue}", func(r chi.Router) {
+		r.Post("/", metricsHandler.UpdateURLMetric)
+	})
+
+	r.Route("/value/{metricType}/{metricName}", func(r chi.Router) {
+		r.Get("/", metricsHandler.GetURLMetric)
 	})
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.GetAllMetrics)
 	})
 
-	err := server.Start(r)
+	backupController, err := metrics.NewBackupController(flagFileStoragePath)
 	if err != nil {
 		panic(err)
 	}
+
+	allMetrics, err := backupController.ReadMetrics()
+	storageRepository.SetMetrics(allMetrics)
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	go gracefulShutdown(cancelFunc, server)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				time.Sleep(time.Duration(flagStoreInterval) * time.Second)
+
+				if err := os.Truncate(flagFileStoragePath, 0); err != nil {
+					panic(err)
+				}
+
+				allMetrics := storageRepository.GetMetrics()
+
+				err = backupController.WriteMetrics(allMetrics)
+
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
+
+	err = server.Start(r)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func gracefulShutdown(cancelFunc context.CancelFunc, srv server.Server) {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	s := <-quit
+
+	fmt.Println("graceful shutdown", s)
+
+	cancelFunc() // Останавливаем фоновые горутины
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		fmt.Println("Error shutting down server:", err)
+	}
+
+	os.Exit(0)
 }

@@ -1,9 +1,8 @@
 package usecases
 
 import (
-	"alerting-service/internal/domain"
+	"alerting-service/internal/models"
 	repositories "alerting-service/internal/repository"
-	v "alerting-service/internal/validation"
 	"reflect"
 	"testing"
 )
@@ -34,46 +33,32 @@ func TestNewMetricUsecase(t *testing.T) {
 
 func TestMetricDataProcessing(t *testing.T) {
 	usecase := NewMetricUsecase(repositories.NewStorageRepository())
+	testValue := 25.5
+	testValuePtr := &testValue
+	testDelta := int64(25)
+	testDeltaPtr := &testDelta
 
 	tests := []struct {
 		name    string
 		wantErr error
-		metric  domain.Metric
+		metric  models.Metrics
 	}{
 		{
 			name:    "new gauge metric usecase test",
 			wantErr: nil,
-			metric: domain.Metric{
-				Type:  "gauge",
-				Name:  "temp",
-				Value: "25",
+			metric: models.Metrics{
+				MType: "gauge",
+				ID:    "temp",
+				Value: testValuePtr,
 			},
 		},
 		{
 			name:    "new counter metric usecase test",
 			wantErr: nil,
-			metric: domain.Metric{
-				Type:  "counter",
-				Name:  "temp",
-				Value: "25",
-			},
-		},
-		{
-			name:    "invalid metric usecase with without nums test",
-			wantErr: v.ErrInvalidMetricValue,
-			metric: domain.Metric{
-				Type:  "counter",
-				Name:  "temp",
-				Value: "adsadsd",
-			},
-		},
-		{
-			name:    "invalid metric usecase with nums test",
-			wantErr: v.ErrInvalidMetricValue,
-			metric: domain.Metric{
-				Type:  "counter",
-				Name:  "temp",
-				Value: "55fff",
+			metric: models.Metrics{
+				MType:  "counter",
+				ID:  "temp",
+				Delta: testDeltaPtr,
 			},
 		},
 	}

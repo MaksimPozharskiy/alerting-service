@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"alerting-service/internal/logger"
+	"alerting-service/internal/models"
 	"alerting-service/internal/usecases"
+	"alerting-service/internal/utils"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
-	utils "alerting-service/internal/utils"
 	v "alerting-service/internal/validation"
+
+	"go.uber.org/zap"
 )
 
 type metricHandler struct {
@@ -17,8 +21,90 @@ type metricHandler struct {
 func NewMetricHandler(metricUsecase usecases.MetricUsecase) *metricHandler {
 	return &metricHandler{metricUsecase: metricUsecase}
 }
+func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handleError(w, v.ErrMethodNotAllowed)
+		return
+	}
 
-func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, req *http.Request) {
+	logger.Log.Debug("decoding request")
+	var req models.Metrics
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	metric := models.Metrics{
+		ID:    req.ID,
+		MType: req.MType,
+	}
+
+	if req.MType == models.GaugeMetric {
+		metric.Value = req.Value
+	} else {
+		metric.Delta = req.Delta
+	}
+
+	handler.metricUsecase.MetricDataProcessing(metric)
+
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(metric); err != nil {
+		logger.Log.Debug("error encoding response", zap.Error(err))
+		return
+	}
+	logger.Log.Debug("sending HTTP 200 response")
+}
+
+func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handleError(w, v.ErrMethodNotAllowed)
+		return
+	}
+
+	logger.Log.Debug("decoding request")
+	var req models.Metrics
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	metric := models.Metrics{
+		ID:    req.ID,
+		MType: req.MType,
+	}
+
+	value, err := handler.metricUsecase.GetMetricDataProcessing(metric)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	if metric.MType == models.GaugeMetric {
+		metric.Value = &value
+	} else {
+		val := int64(value)
+		metric.Delta = &val
+	}
+
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(metric); err != nil {
+		logger.Log.Debug("error encoding response", zap.Error(err))
+		return
+	}
+	logger.Log.Debug("sending HTTP 200 response")
+}
+
+func (handler *metricHandler) UpdateURLMetric(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		handleError(w, v.ErrMethodNotAllowed)
 		return
@@ -40,7 +126,7 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, req *http.Requ
 	w.WriteHeader(http.StatusOK)
 }
 
-func (handler *metricHandler) GetMetric(w http.ResponseWriter, req *http.Request) {
+func (handler *metricHandler) GetURLMetric(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		handleError(w, v.ErrMethodNotAllowed)
 		return
@@ -52,17 +138,16 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	value, err := handler.metricUsecase.GetMetricDataProcessing(metric.Type, metric.Name)
+	value, err := handler.metricUsecase.GetMetricDataProcessing(metric)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 
-	metric.Value = strconv.FormatFloat(value, 'f', -1, 64)
-
 	w.Header().Set("Content-type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(metric.Value))
+
+	w.Write([]byte(fmt.Sprint(value)))
 }
 
 func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Request) {
@@ -73,11 +158,16 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 
 	allMetrics := handler.metricUsecase.GetMetrics()
 
-	w.Header().Set("Content-type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	for key, value := range allMetrics {
-		w.Write([]byte(fmt.Sprintf("%s: %s\n", key, value)))
+	for _, metric := range allMetrics {
+		mType := metric.MType
+		if mType == models.GaugeMetric {
+			w.Write([]byte(fmt.Sprintf("%s: %f\n", metric.ID, *metric.Value)))
+		} else {
+			w.Write([]byte(fmt.Sprintf("%s: %d\n", metric.ID, *metric.Delta)))
+		}
 	}
 }
 

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -8,6 +9,7 @@ import (
 
 type Server interface {
 	Start(*chi.Mux) error
+	Shutdown(context.Context) error
 }
 
 type ServerImpl struct {
@@ -26,5 +28,10 @@ func (s *ServerImpl) Start(mux *chi.Mux) error {
 	if err := http.ListenAndServe(s.httpServer.Addr, mux); err != http.ErrServerClosed {
 		return err
 	}
+
 	return nil
+}
+
+func (s *ServerImpl) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
 }

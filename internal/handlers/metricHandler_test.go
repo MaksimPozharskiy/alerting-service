@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,70 +39,45 @@ func TestNewMetricHandler(t *testing.T) {
 func TestUpdateMetric(t *testing.T) {
 	handler := NewMetricHandler(usecases.NewMetricUsecase(repositories.NewStorageRepository()))
 
-	type want struct {
-		code        int
-		contentType string
-	}
-
 	tests := []struct {
-		name string
-		want want
-		url  string
+		name         string
+		method       string
+		body         string
+		expectedCode int
 	}{
 		{
-			name: "postive update gauge test",
-			want: want{
-				code:        200,
-				contentType: "text/plain; charset=utf-8",
-			},
-			url: "/update/gauge/temp/25",
+			name:   "update gauge metric success test",
+			method: http.MethodPost,
+			body: `{
+				"id": "1",
+				"type": "gauge",
+				"value": 2
+			}`,
+			expectedCode: http.StatusOK,
 		},
 		{
-			name: "postive update counter test",
-			want: want{
-				code:        200,
-				contentType: "text/plain; charset=utf-8",
-			},
-			url: "/update/counter/temp/25",
-		},
-		{
-			name: "incorrect metric typ test",
-			want: want{
-				code:        400,
-				contentType: "text/plain; charset=utf-8",
-			},
-			url: "/update/test/temp/25",
-		},
-		{
-			name: "incorrect metric value test",
-			want: want{
-				code:        400,
-				contentType: "text/plain; charset=utf-8",
-			},
-			url: "/update/test/temp/",
-		},
-		{
-			name: "incorrect url path value test",
-			want: want{
-				code:        404,
-				contentType: "text/plain; charset=utf-8",
-			},
-			url: "/update/test/",
+			name:   "update counter metric success test",
+			method: http.MethodPost,
+			body: `{
+	  			"id": "1",
+				"type": "counter",
+				"delta": 2
+			}`,
+			expectedCode: http.StatusOK,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, test.url, nil)
-
+			req := httptest.NewRequest(http.MethodPost, "/update", strings.NewReader(test.body))
 			w := httptest.NewRecorder()
 
-			handler.UpdateMetric(w, request)
+			handler.UpdateMetric(w, req)
 
 			res := w.Result()
-			assert.Equal(t, test.want.code, res.StatusCode)
 
 			defer res.Body.Close()
-			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
+
+			assert.Equal(t, test.expectedCode, res.StatusCode, "Response code didn't match expected")
 		})
 	}
 }

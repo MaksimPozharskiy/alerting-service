@@ -1,21 +1,15 @@
 package repositories
 
-import "strconv"
-
-type MemStorage interface {
-	GetCounterMetric(string) (int, bool)
-	GetGaugeMetric(string) (float64, bool)
-	UpdateGaugeMetric(string, float64)
-	UpdateCounterMetric(string, int)
-	GetMetrics() map[string]string
-}
+import (
+	"alerting-service/internal/models"
+)
 
 type MemStorageImp struct {
 	gauges   map[string]float64
 	counters map[string]int
 }
 
-func NewStorageRepository() MemStorage {
+func NewStorageRepository() *MemStorageImp {
 	return &MemStorageImp{gauges: map[string]float64{}, counters: map[string]int{}}
 }
 
@@ -43,16 +37,40 @@ func (s *MemStorageImp) UpdateCounterMetric(metricName string, value int) {
 	s.counters[metricName] += value
 }
 
-func (s *MemStorageImp) GetMetrics() map[string]string {
-	allMetrics := make(map[string]string)
+func (s *MemStorageImp) GetMetrics() []models.Metrics {
+	allMetrics := []models.Metrics{}
 
 	for key, value := range s.gauges {
-		allMetrics[key] = strconv.FormatFloat(value, 'f', -1, 64)
+		metric := models.Metrics{
+			ID:    key,
+			MType: "gauge",
+			Value: &value,
+		}
+
+		allMetrics = append(allMetrics, metric)
 	}
 
 	for key, value := range s.counters {
-		allMetrics[key] = strconv.Itoa(value)
+		metric := models.Metrics{
+			ID:    key,
+			MType: "counter",
+		}
+
+		val := int64(value)
+		metric.Delta = &val
+
+		allMetrics = append(allMetrics, metric)
 	}
 
 	return allMetrics
+}
+
+func (s *MemStorageImp) SetMetrics(allMetrics []models.Metrics) {
+	for _, metric := range allMetrics {
+		if metric.MType == models.GaugeMetric {
+			s.gauges[metric.ID] = *metric.Value
+		} else {
+			s.counters[metric.ID] = int(*metric.Delta)
+		}
+	}
 }

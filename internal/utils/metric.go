@@ -2,14 +2,15 @@ package utils
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
-	"alerting-service/internal/domain"
+	"alerting-service/internal/models"
 	v "alerting-service/internal/validation"
 )
 
-func ParseUpdateMetricURL(url string) (domain.Metric, error) {
-	var m domain.Metric
+func ParseUpdateMetricURL(url string) (models.Metrics, error) {
+	var m models.Metrics
 
 	urlData := strings.Split(url, "/")
 
@@ -22,15 +23,28 @@ func ParseUpdateMetricURL(url string) (domain.Metric, error) {
 		return m, v.ErrInvalidMetricType
 	}
 
-	m.Type = metricType
-	m.Name = urlData[3]
-	m.Value = urlData[4]
+	m.MType = metricType
+	m.ID = urlData[3]
+	if m.MType == models.GaugeMetric {
+		value, err := strconv.ParseFloat(urlData[4], 64)
+		if err != nil {
+			return m, v.ErrInvalidMetricValue
+		}
+		m.Value = &value
+	} else {
+		value, err := strconv.Atoi(urlData[4])
+		if err != nil {
+			return m, v.ErrInvalidMetricValue
+		}
+		val := int64(value)
+		m.Delta = &val
+	}
 
 	return m, nil
 }
 
-func ParseGetMetricURL(url string) (domain.Metric, error) {
-	var m domain.Metric
+func ParseGetMetricURL(url string) (models.Metrics, error) {
+	var m models.Metrics
 
 	urlData := strings.Split(url, "/")
 
@@ -43,8 +57,8 @@ func ParseGetMetricURL(url string) (domain.Metric, error) {
 		return m, v.ErrInvalidMetricType
 	}
 
-	m.Type = metricType
-	m.Name = urlData[3]
+	m.MType = metricType
+	m.ID = urlData[3]
 
 	return m, nil
 }
