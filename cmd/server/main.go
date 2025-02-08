@@ -8,14 +8,21 @@ import (
 	repositories "alerting-service/internal/repository"
 	"alerting-service/internal/server"
 	"alerting-service/internal/usecases"
+	"context"
+	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
 func main() {
-	parseFlags()
+	err := parseFlags()
+	if err != nil {
+		panic(err)
+	}
 
 	storageRepository := repositories.NewStorageRepository()
 	metricUsecase := usecases.NewMetricUsecase(storageRepository)
@@ -52,7 +59,7 @@ func main() {
 		r.Get("/", metricsHandler.GetAllMetrics)
 	})
 
-	backupController, err := metrics.NewBackupController("./test.json")
+	backupController, err := metrics.NewBackupController(flagFileStoragePath)
 	if err != nil {
 		panic(err)
 	}
@@ -60,28 +67,53 @@ func main() {
 	allMetrics, err := backupController.ReadMetrics()
 	storageRepository.SetMetrics(allMetrics)
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	go gracefulShutdown(cancelFunc, server)
+
 	go func() {
 		for {
-			time.Sleep(time.Duration(5) * time.Second)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				time.Sleep(time.Duration(flagStoreInterval) * time.Second)
 
-			if err := os.Truncate("./test.json", 0); err != nil {
-				panic(err)
+				if err := os.Truncate(flagFileStoragePath, 0); err != nil {
+					panic(err)
+				}
+
+				allMetrics := storageRepository.GetMetrics()
+
+				err = backupController.WriteMetrics(allMetrics)
+
+				if err != nil {
+					panic(err)
+				}
 			}
-
-			allMetrics := storageRepository.GetMetrics()
-
-			err = backupController.WriteMetrics(allMetrics)
-
-			if err != nil {
-				panic(err)
-			}
-
 		}
 	}()
 
 	err = server.Start(r)
-
 	if err != nil {
 		panic(err)
 	}
+}
+
+func gracefulShutdown(cancelFunc context.CancelFunc, srv server.Server) {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	s := <-quit
+
+	fmt.Println("graceful shutdown", s)
+
+	cancelFunc() // Останавливаем фоновые горутины
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		fmt.Println("Error shutting down server:", err)
+	}
+
+	os.Exit(0)
 }

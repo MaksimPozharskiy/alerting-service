@@ -14,7 +14,7 @@ var (
 	flagRestore         bool
 )
 
-func parseFlags() {
+func parseFlags() error {
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.StringVar(&flagLogLevel, "l", "info", "log level")
 	flag.IntVar(&flagStoreInterval, "i", 300, "interbal for storing data on a disk")
@@ -33,7 +33,7 @@ func parseFlags() {
 	if envStoreInterval := os.Getenv("STORE_INTERVAL"); envStoreInterval != "" {
 		value, err := strconv.Atoi(envStoreInterval)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		flagStoreInterval = value
 	}
@@ -45,8 +45,10 @@ func parseFlags() {
 	if envRestore := os.Getenv("RESTORE"); envRestore != "" {
 		boolValue, err := strconv.ParseBool(envRestore)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		flagRestore = boolValue
 	}
+
+	return nil
 }

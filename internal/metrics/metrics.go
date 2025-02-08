@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"sync"
 )
 
 type BackupController struct {
-	file    *os.File
+	file    io.ReadWriteCloser
 	encoder *json.Encoder
 	decoder *json.Decoder
+	mutex   sync.Mutex
 }
 
 func NewBackupController(filename string) (*BackupController, error) {
@@ -28,6 +30,8 @@ func NewBackupController(filename string) (*BackupController, error) {
 }
 
 func (b *BackupController) WriteMetric(metric models.Metrics) error {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
 	return b.encoder.Encode(&metric)
 }
 
