@@ -2,13 +2,13 @@ package usecases
 
 import (
 	"alerting-service/internal/models"
-	repositories "alerting-service/internal/repository"
+	"alerting-service/internal/repository"
 	"reflect"
 	"testing"
 )
 
 func TestNewMetricUsecase(t *testing.T) {
-	rep := repositories.NewStorageRepository()
+	rep := repository.NewMemStorageRepository()
 
 	tests := []struct {
 		name string
@@ -32,7 +32,7 @@ func TestNewMetricUsecase(t *testing.T) {
 }
 
 func TestMetricDataProcessing(t *testing.T) {
-	usecase := NewMetricUsecase(repositories.NewStorageRepository())
+	usecase := NewMetricUsecase(repository.NewMemStorageRepository())
 	testValue := 25.5
 	testValuePtr := &testValue
 	testDelta := int64(25)
@@ -56,8 +56,8 @@ func TestMetricDataProcessing(t *testing.T) {
 			name:    "new counter metric usecase test",
 			wantErr: nil,
 			metric: models.Metrics{
-				MType:  "counter",
-				ID:  "temp",
+				MType: "counter",
+				ID:    "temp",
 				Delta: testDeltaPtr,
 			},
 		},
