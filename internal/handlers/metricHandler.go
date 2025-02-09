@@ -21,6 +21,7 @@ type metricHandler struct {
 func NewMetricHandler(metricUsecase usecases.MetricUsecase) *metricHandler {
 	return &metricHandler{metricUsecase: metricUsecase}
 }
+
 func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handleError(w, v.ErrMethodNotAllowed)
