@@ -2,11 +2,12 @@ package usecases
 
 import (
 	"alerting-service/internal/models"
+	"alerting-service/internal/repository"
 
 	v "alerting-service/internal/validation"
 )
 
-type MemStorage interface {
+type StorageRepository interface {
 	GetCounterMetric(string) (int, bool)
 	GetGaugeMetric(string) (float64, bool)
 	UpdateGaugeMetric(string, float64)
@@ -22,10 +23,10 @@ type MetricUsecase interface {
 }
 
 type MetricUsecaseImpl struct {
-	storageRepository MemStorage
+	storageRepository repository.StorageRepository
 }
 
-func NewMetricUsecase(storageRepository MemStorage) MetricUsecase {
+func NewMetricUsecase(storageRepository repository.StorageRepository) MetricUsecase {
 	return &MetricUsecaseImpl{
 		storageRepository: storageRepository,
 	}
