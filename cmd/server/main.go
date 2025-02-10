@@ -11,6 +11,7 @@ import (
 	"alerting-service/internal/server"
 	"alerting-service/internal/usecases"
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
@@ -26,14 +27,21 @@ func main() {
 		panic(err)
 	}
 
-	dbConn, err := db.Connect(flagDBConnectionString)
-	if err != nil {
-		panic(err)
+	var storageRepository repository.StorageRepository
+	var dbConn *sql.DB
+
+	if flagDBConnectionString != "" {
+		dbConn, err = db.Connect(flagDBConnectionString)
+		if err != nil {
+			panic(err)
+		} else {
+			defer dbConn.Close()
+			storageRepository = repository.NewDBStorageRepository(dbConn)
+		}
+	} else {
+		storageRepository = repository.NewMemStorageRepository()
 	}
 
-	defer dbConn.Close()
-
-	storageRepository := repository.NewMemStorageRepository()
 	metricUsecase := usecases.NewMetricUsecase(storageRepository)
 	metricsHandler := handlers.NewMetricHandler(metricUsecase)
 	obsHandler := observability.NewObsHandler(dbConn)
@@ -118,7 +126,7 @@ func gracefulShutdown(cancelFunc context.CancelFunc, srv server.Server) {
 
 	fmt.Println("graceful shutdown", s)
 
-	cancelFunc() // Останавливаем фоновые горутины
+	cancelFunc()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

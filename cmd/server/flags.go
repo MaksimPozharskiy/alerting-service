@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strconv"
 )
@@ -16,14 +15,14 @@ var (
 	flagDBConnectionString string
 )
 
+// -d "host=localhost user=metrics password=userpassword dbname=metrics sslmode=disable"
 func parseFlags() error {
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.StringVar(&flagLogLevel, "l", "info", "log level")
 	flag.IntVar(&flagStoreInterval, "i", 300, "interbal for storing data on a disk")
 	flag.StringVar(&flagFileStoragePath, "f", "./backup", "path to storing file")
-	flag.StringVar(&flagDBConnectionString, "d", fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=%s",
-		`localhost`, `metrics`, `userpassword`, `metrics`, `disable`), "connetction string for postgress db")
-	flag.BoolVar(&flagRestore, "r", true, "restote or not data from file after running server")
+	flag.StringVar(&flagDBConnectionString, "d", "", "connetction string for postgress db")
+	flag.BoolVar(&flagRestore, "r", true, "restore or not data from file after running server")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
