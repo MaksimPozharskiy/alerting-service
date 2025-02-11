@@ -14,6 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var metricsBufSize int = 20
+
 type metricHandler struct {
 	metricUsecase usecases.MetricUsecase
 }
@@ -157,7 +159,11 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	allMetrics := handler.metricUsecase.GetMetrics()
+	allMetrics, err := handler.metricUsecase.GetMetrics()
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 
 	w.Header().Set("Content-type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -170,6 +176,35 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 			w.Write([]byte(fmt.Sprintf("%s: %d\n", metric.ID, *metric.Delta)))
 		}
 	}
+}
+
+func (handler *metricHandler) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		handleError(w, v.ErrMethodNotAllowed)
+		return
+	}
+
+	logger.Log.Debug("decoding request")
+	var metrics []models.Metrics
+
+	dec := json.NewDecoder(r.Body)
+
+	if err := dec.Decode(&metrics); err != nil {
+		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err := handler.metricUsecase.UpdateMetrics(metrics)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	logger.Log.Debug("sending HTTP 200 response")
 }
 
 func handleError(w http.ResponseWriter, err error) {

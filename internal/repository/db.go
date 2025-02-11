@@ -4,6 +4,8 @@ import (
 	"alerting-service/internal/models"
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 type DBStorageImp struct {
@@ -14,31 +16,31 @@ func NewDBStorageRepository(db *sql.DB) StorageRepository {
 	return &DBStorageImp{db: db}
 }
 
-func (d *DBStorageImp) GetCounterMetric(key string) (int, bool) {
+func (d *DBStorageImp) GetCounterMetric(key string) (int, bool, error) {
 	var delta int
 
 	row := d.db.QueryRow("SELECT delta FROM metrics WHERE type = 'counter' AND name = $1", key)
 	err := row.Scan(&delta)
 	if err != nil {
-		panic(err)
+		return 0, false, err
 	}
 
-	return delta, true
+	return delta, true, nil
 }
 
-func (d *DBStorageImp) GetGaugeMetric(key string) (float64, bool) {
+func (d *DBStorageImp) GetGaugeMetric(key string) (float64, bool, error) {
 	var value float64
 
 	row := d.db.QueryRow("SELECT delta FROM metrics WHERE type = 'gauge' AND name = $1", key)
 	err := row.Scan(&value)
 	if err != nil {
-		panic(err)
+		return 0, false, err
 	}
 
-	return value, true
+	return value, true, nil
 }
 
-func (d *DBStorageImp) UpdateGaugeMetric(metricName string, value float64) {
+func (d *DBStorageImp) UpdateGaugeMetric(metricName string, value float64) error {
 	sqlStatement := `
 INSERT INTO metrics (name, type, value, delta)
 VALUES ($1, $2, $3, NULL)
@@ -47,11 +49,13 @@ SET value = EXCLUDED.value, updated_at = NOW();`
 
 	_, err := d.db.Exec(sqlStatement, metricName, "gauge", value)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	return nil
 }
 
-func (d *DBStorageImp) UpdateCounterMetric(metricName string, value int) {
+func (d *DBStorageImp) UpdateCounterMetric(metricName string, value int) error {
 	sqlStatement := `
 INSERT INTO metrics (name, type, value, delta)
 VALUES ($1, $2, $3, $4)
@@ -60,14 +64,16 @@ SET delta = metrics.delta + EXCLUDED.delta, updated_at = NOW();`
 
 	_, err := d.db.Exec(sqlStatement, metricName, "counter", 0, value)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	return nil
 }
 
-func (d *DBStorageImp) GetMetrics() []models.Metrics {
+func (d *DBStorageImp) GetMetrics() ([]models.Metrics, error) {
 	rows, err := d.db.Query("SELECT name, type, value, delta FROM metrics")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -80,7 +86,7 @@ func (d *DBStorageImp) GetMetrics() []models.Metrics {
 
 		err := rows.Scan(&metric.ID, &metric.MType, &value, &delta)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		if value.Valid {
@@ -95,14 +101,48 @@ func (d *DBStorageImp) GetMetrics() []models.Metrics {
 	}
 
 	if err = rows.Err(); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return allMetrics
+	return allMetrics, nil
 }
 
 func (d *DBStorageImp) SetMetrics(allMetrics []models.Metrics) {
 
+}
+
+func (d *DBStorageImp) UpdateMetrics(metrics []models.Metrics) error {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	sqlStr := "INSERT INTO metrics (name, type, value, delta) VALUES "
+	var values []interface{}
+	var placeholders []string
+
+	for i, metric := range metrics {
+		startIdx := i*4 + 1
+		placeholders = append(placeholders, fmt.Sprintf("($%d, $%d, $%d, $%d)", startIdx, startIdx+1, startIdx+2, startIdx+3))
+
+		if metric.MType == models.GaugeMetric {
+			values = append(values, metric.ID, metric.MType, metric.Value, nil)
+		} else {
+			values = append(values, metric.ID, metric.MType, nil, metric.Delta)
+		}
+	}
+
+	sqlStr += strings.Join(placeholders, ", ")
+
+	sqlStr += ` ON CONFLICT (name) DO UPDATE
+	SET delta = COALESCE(metrics.delta, 0) + COALESCE(EXCLUDED.delta, 0),
+	    value = COALESCE(EXCLUDED.value, metrics.value);`
+
+	_, err := d.db.Exec(sqlStr, values...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *DBStorageImp) PingContext(ctx context.Context) error {

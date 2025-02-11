@@ -7,19 +7,11 @@ import (
 	v "alerting-service/internal/validation"
 )
 
-type StorageRepository interface {
-	GetCounterMetric(string) (int, bool)
-	GetGaugeMetric(string) (float64, bool)
-	UpdateGaugeMetric(string, float64)
-	UpdateCounterMetric(string, int)
-	GetMetrics() []models.Metrics
-	SetMetrics([]models.Metrics)
-}
-
 type MetricUsecase interface {
 	MetricDataProcessing(models.Metrics) error
 	GetMetricDataProcessing(models.Metrics) (float64, error)
-	GetMetrics() []models.Metrics
+	GetMetrics() ([]models.Metrics, error)
+	UpdateMetrics([]models.Metrics) error
 }
 
 type MetricUsecaseImpl struct {
@@ -46,13 +38,13 @@ func (usecase *MetricUsecaseImpl) MetricDataProcessing(metric models.Metrics) er
 func (usecase *MetricUsecaseImpl) GetMetricDataProcessing(metric models.Metrics) (float64, error) {
 	switch metric.MType {
 	case models.CounterMetric:
-		if value, ok := usecase.storageRepository.GetCounterMetric(metric.ID); ok {
+		if value, ok, _ := usecase.storageRepository.GetCounterMetric(metric.ID); ok {
 			return float64(value), nil
 		} else {
 			return 0, v.ErrMetricNotFound
 		}
 	case models.GaugeMetric:
-		if value, ok := usecase.storageRepository.GetGaugeMetric(metric.ID); ok {
+		if value, ok, _ := usecase.storageRepository.GetGaugeMetric(metric.ID); ok {
 			return value, nil
 		} else {
 			return 0, v.ErrMetricNotFound
@@ -61,6 +53,19 @@ func (usecase *MetricUsecaseImpl) GetMetricDataProcessing(metric models.Metrics)
 	return 0, v.ErrInvalidMetricValue
 }
 
-func (usecase *MetricUsecaseImpl) GetMetrics() []models.Metrics {
-	return usecase.storageRepository.GetMetrics()
+func (usecase *MetricUsecaseImpl) GetMetrics() ([]models.Metrics, error) {
+	metrics, err := usecase.storageRepository.GetMetrics()
+	if err != nil {
+		return nil, err
+	}
+	return metrics, nil
+}
+
+func (usecase *MetricUsecaseImpl) UpdateMetrics(metrics []models.Metrics) error {
+	err := usecase.storageRepository.UpdateMetrics(metrics)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

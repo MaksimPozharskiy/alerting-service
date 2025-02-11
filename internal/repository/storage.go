@@ -5,10 +5,11 @@ import (
 )
 
 type StorageRepository interface {
-	GetCounterMetric(string) (int, bool)
-	GetGaugeMetric(string) (float64, bool)
-	UpdateGaugeMetric(string, float64)
-	UpdateCounterMetric(string, int)
-	GetMetrics() []models.Metrics
+	GetCounterMetric(string) (int, bool, error)
+	GetGaugeMetric(string) (float64, bool, error)
+	UpdateGaugeMetric(string, float64) error
+	UpdateCounterMetric(string, int) error
+	GetMetrics() ([]models.Metrics, error)
 	SetMetrics([]models.Metrics)
+	UpdateMetrics([]models.Metrics) error
 }

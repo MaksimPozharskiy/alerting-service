@@ -52,7 +52,7 @@ func TestGetCounterMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			want, ok := storage.GetCounterMetric(test.metricName)
+			want, ok, _ := storage.GetCounterMetric(test.metricName)
 
 			if ok != test.wantOk {
 				t.Errorf("want ok: %v, got: %v", test.wantOk, ok)
@@ -89,7 +89,7 @@ func TestGetGaugeMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			want, ok := storage.GetGaugeMetric(test.metricName)
+			want, ok, _ := storage.GetGaugeMetric(test.metricName)
 
 			if ok != test.wantOk {
 				t.Errorf("want ok: %v, got: %v", test.wantOk, ok)
@@ -120,7 +120,7 @@ func TestUpdateGaugeMetric(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			storage.UpdateGaugeMetric(test.metricName, test.metricValue)
-			want, _ := storage.GetGaugeMetric(test.metricName)
+			want, _, _ := storage.GetGaugeMetric(test.metricName)
 
 			if want != test.want {
 				t.Errorf("want: %+v, got: %+v", test.want, want)
@@ -156,7 +156,7 @@ func TestUpdateCounterMetric(t *testing.T) {
 			storage.UpdateCounterMetric(test.metricName, test.initialValue)
 
 			storage.UpdateCounterMetric(test.metricName, test.metricValue)
-			want, _ := storage.GetCounterMetric(test.metricName)
+			want, _, _ := storage.GetCounterMetric(test.metricName)
 
 			if want != test.want {
 				t.Errorf("want: %+v, got: %+v", test.want, want)

@@ -61,6 +61,10 @@ func main() {
 		r.Post("/", metricsHandler.UpdateMetric)
 	})
 
+	r.Route("/updates", func(r chi.Router) {
+		r.Post("/", metricsHandler.UpdateMetrics)
+	})
+
 	r.Route("/value", func(r chi.Router) {
 		r.Post("/", metricsHandler.GetMetric)
 	})
@@ -85,6 +89,9 @@ func main() {
 	}
 
 	allMetrics, err := backupController.ReadMetrics()
+	if err != nil {
+		panic(err)
+	}
 	storageRepository.SetMetrics(allMetrics)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -102,7 +109,10 @@ func main() {
 					panic(err)
 				}
 
-				allMetrics := storageRepository.GetMetrics()
+				allMetrics, err := storageRepository.GetMetrics()
+				if err != nil {
+					panic(err)
+				}
 
 				err = backupController.WriteMetrics(allMetrics)
 

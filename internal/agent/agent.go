@@ -119,7 +119,7 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, address string)
 	}
 
 	req.Header.Add("Accept-Encoding", "gzip")
-	req.Header.Set("Content-type", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
 	response, err := client.Do(req)
 	if err != nil {
@@ -154,7 +154,7 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, address strin
 		return
 	}
 	req.Header.Add("Accept-Encoding", "gzip")
-	req.Header.Set("Content-type", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
 	response, err := client.Do(req)
 	if err != nil {
