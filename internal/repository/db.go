@@ -5,7 +5,11 @@ import (
 	"alerting-service/internal/models"
 	"context"
 	"database/sql"
+	"errors"
+	"time"
 
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
 )
 
@@ -49,12 +53,8 @@ VALUES ($1, $2, $3, NULL)
 ON CONFLICT (name) DO UPDATE
 SET value = EXCLUDED.value, updated_at = NOW();`
 
-	_, err := d.db.Exec(sqlStatement, metricName, "gauge", value)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := d.retryExecute(context.Background(), sqlStatement, metricName, "gauge", value)
+	return err
 }
 
 func (d *DBStorageImp) UpdateCounterMetric(metricName string, value int) error {
@@ -64,12 +64,9 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (name) DO UPDATE
 SET delta = metrics.delta + EXCLUDED.delta, updated_at = NOW();`
 
-	_, err := d.db.Exec(sqlStatement, metricName, "counter", nil, value)
-	if err != nil {
-		return err
-	}
+	_, err := d.retryExecute(context.Background(), sqlStatement, metricName, "counter", nil, value)
+	return err
 
-	return nil
 }
 
 func (d *DBStorageImp) GetMetrics() ([]models.Metrics, error) {
@@ -148,7 +145,7 @@ func (d *DBStorageImp) UpdateMetrics(metrics []models.Metrics) error {
 			delta = metric.Delta
 		}
 
-		_, err := tx.Exec(query, metric.ID, metric.MType, value, delta)
+		_, err := d.retryExecute(context.Background(), query, metric.ID, metric.MType, value, delta)
 		if err != nil {
 			logger.Log.Error("Error executing SQL query", zap.String("metric_id", metric.ID), zap.Error(err))
 			return err
@@ -167,4 +164,45 @@ func (d *DBStorageImp) UpdateMetrics(metrics []models.Metrics) error {
 
 func (d *DBStorageImp) PingContext(ctx context.Context) error {
 	return d.db.PingContext(ctx)
+}
+
+func (d *DBStorageImp) retryExecute(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	var err error
+	var result sql.Result
+
+	retryDelays := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+
+	for attempt := 0; attempt <= len(retryDelays); attempt++ {
+		result, err = d.db.ExecContext(ctx, query, args...)
+		if err == nil {
+			return result, nil
+		}
+
+		if isRetriableError(err) {
+			logger.Log.Warn("Retriable error occurred, retrying...",
+				zap.Error(err), zap.Int("attempt", attempt+1))
+
+			if attempt < len(retryDelays) {
+				time.Sleep(retryDelays[attempt])
+				continue
+			}
+		}
+
+		logger.Log.Error("Non-retriable error occurred", zap.Error(err))
+		return nil, err
+	}
+
+	return nil, err
+}
+
+func isRetriableError(err error) bool {
+	var pqErr *pgconn.PgError
+	if errors.As(err, &pqErr) {
+		switch pqErr.Code {
+		case pgerrcode.ConnectionException, pgerrcode.SerializationFailure,
+			pgerrcode.DeadlockDetected, pgerrcode.StatementCompletionUnknown:
+			return true
+		}
+	}
+	return false
 }
