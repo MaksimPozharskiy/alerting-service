@@ -1,10 +1,13 @@
 package usecases
 
 import (
+	"alerting-service/internal/logger"
 	"alerting-service/internal/models"
 	"alerting-service/internal/repository"
 
 	v "alerting-service/internal/validation"
+
+	"go.uber.org/zap"
 )
 
 type MetricUsecase interface {
@@ -62,10 +65,14 @@ func (usecase *MetricUsecaseImpl) GetMetrics() ([]models.Metrics, error) {
 }
 
 func (usecase *MetricUsecaseImpl) UpdateMetrics(metrics []models.Metrics) error {
+	logger.Log.Debug("Entering UpdateMetrics in usecase", zap.Int("metrics_count", len(metrics)))
+
 	err := usecase.storageRepository.UpdateMetrics(metrics)
 	if err != nil {
+		logger.Log.Error("Error updating metrics in storage repository", zap.Error(err))
 		return err
 	}
 
+	logger.Log.Debug("Successfully updated metrics in storage repository")
 	return nil
 }

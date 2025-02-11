@@ -177,26 +177,28 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 		}
 	}
 }
-
 func (handler *metricHandler) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		logger.Log.Warn("Invalid request method", zap.String("method", r.Method))
 		handleError(w, v.ErrMethodNotAllowed)
 		return
 	}
 
-	logger.Log.Debug("decoding request")
+	logger.Log.Debug("Decoding request body for batch metric update")
 	var metrics []models.Metrics
 
 	dec := json.NewDecoder(r.Body)
-
 	if err := dec.Decode(&metrics); err != nil {
-		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
+		logger.Log.Error("Cannot decode request JSON body", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	logger.Log.Debug("Received metrics for update", zap.Int("metrics_count", len(metrics)), zap.Any("metrics", metrics))
+
 	err := handler.metricUsecase.UpdateMetrics(metrics)
 	if err != nil {
+		logger.Log.Error("Error updating metrics", zap.Error(err))
 		handleError(w, err)
 		return
 	}
@@ -204,7 +206,7 @@ func (handler *metricHandler) UpdateMetrics(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	logger.Log.Debug("sending HTTP 200 response")
+	logger.Log.Debug("Successfully processed batch update, sending HTTP 200 response")
 }
 
 func handleError(w http.ResponseWriter, err error) {

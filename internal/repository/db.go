@@ -1,11 +1,12 @@
 package repository
 
 import (
+	"alerting-service/internal/logger"
 	"alerting-service/internal/models"
 	"context"
 	"database/sql"
-	"fmt"
-	"strings"
+
+	"go.uber.org/zap"
 )
 
 type DBStorageImp struct {
@@ -31,8 +32,9 @@ func (d *DBStorageImp) GetCounterMetric(key string) (int, bool, error) {
 func (d *DBStorageImp) GetGaugeMetric(key string) (float64, bool, error) {
 	var value float64
 
-	row := d.db.QueryRow("SELECT delta FROM metrics WHERE type = 'gauge' AND name = $1", key)
+	row := d.db.QueryRow("SELECT value FROM metrics WHERE type = 'gauge' AND name = $1", key)
 	err := row.Scan(&value)
+
 	if err != nil {
 		return 0, false, err
 	}
@@ -62,7 +64,7 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (name) DO UPDATE
 SET delta = metrics.delta + EXCLUDED.delta, updated_at = NOW();`
 
-	_, err := d.db.Exec(sqlStatement, metricName, "counter", 0, value)
+	_, err := d.db.Exec(sqlStatement, metricName, "counter", nil, value)
 	if err != nil {
 		return err
 	}
@@ -113,35 +115,53 @@ func (d *DBStorageImp) SetMetrics(allMetrics []models.Metrics) {
 
 func (d *DBStorageImp) UpdateMetrics(metrics []models.Metrics) error {
 	if len(metrics) == 0 {
+		logger.Log.Debug("No metrics provided for update")
 		return nil
 	}
 
-	sqlStr := "INSERT INTO metrics (name, type, value, delta) VALUES "
-	var values []interface{}
-	var placeholders []string
+	tx, err := d.db.Begin()
+	if err != nil {
+		logger.Log.Error("Failed to begin transaction", zap.Error(err))
+		return err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
 
-	for i, metric := range metrics {
-		startIdx := i*4 + 1
-		placeholders = append(placeholders, fmt.Sprintf("($%d, $%d, $%d, $%d)", startIdx, startIdx+1, startIdx+2, startIdx+3))
+	query := `INSERT INTO metrics (name, type, value, delta) 
+              VALUES ($1, $2, $3, $4) 
+              ON CONFLICT (name) DO UPDATE 
+              SET delta = COALESCE(metrics.delta, 0) + COALESCE(EXCLUDED.delta, 0), 
+                  value = COALESCE(EXCLUDED.value, metrics.value);`
 
+	for _, metric := range metrics {
+		logger.Log.Debug("Processing metric", zap.String("id", metric.ID), zap.String("type", metric.MType))
+
+		var value, delta interface{}
 		if metric.MType == models.GaugeMetric {
-			values = append(values, metric.ID, metric.MType, metric.Value, nil)
+			value = metric.Value
+			delta = nil
 		} else {
-			values = append(values, metric.ID, metric.MType, nil, metric.Delta)
+			value = nil
+			delta = metric.Delta
+		}
+
+		_, err := tx.Exec(query, metric.ID, metric.MType, value, delta)
+		if err != nil {
+			logger.Log.Error("Error executing SQL query", zap.String("metric_id", metric.ID), zap.Error(err))
+			return err
 		}
 	}
 
-	sqlStr += strings.Join(placeholders, ", ")
-
-	sqlStr += ` ON CONFLICT (name) DO UPDATE
-	SET delta = COALESCE(metrics.delta, 0) + COALESCE(EXCLUDED.delta, 0),
-	    value = COALESCE(EXCLUDED.value, metrics.value);`
-
-	_, err := d.db.Exec(sqlStr, values...)
+	err = tx.Commit()
 	if err != nil {
+		logger.Log.Error("Failed to commit transaction", zap.Error(err))
 		return err
 	}
 
+	logger.Log.Debug("Successfully updated all metrics in database")
 	return nil
 }
 
