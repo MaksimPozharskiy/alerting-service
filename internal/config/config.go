@@ -14,6 +14,7 @@ type Config struct {
 	Restore         bool
 	PollInterval    int
 	ReportInterval  int
+	HashKey         string
 }
 
 func GetConfig() *Config {
@@ -22,6 +23,7 @@ func GetConfig() *Config {
 	flag.StringVar(&cfg.RunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.IntVar(&cfg.PollInterval, "p", 2, "how often to get metrics from runtime, seconds")
 	flag.IntVar(&cfg.ReportInterval, "r", 10, "how often to send metrics to server, seconds")
+	flag.StringVar(&cfg.HashKey, "k", "", "hash key string for generation signature")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -38,6 +40,10 @@ func GetConfig() *Config {
 		if envPollInterval, err := strconv.Atoi(envPollInterval); err == nil {
 			cfg.ReportInterval = envPollInterval
 		}
+	}
+
+	if envHashKey := os.Getenv("KEY"); envHashKey != "" {
+		cfg.HashKey = envHashKey
 	}
 
 	return cfg

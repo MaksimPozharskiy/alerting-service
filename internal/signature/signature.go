@@ -11,8 +11,15 @@ var HashSHA256 = "HashSHA256"
 
 var hashKey []byte
 
-func SetHashKey(key string) {
+func SetServerHashKey(key string) {
 	hashKey = []byte(key)
+}
+
+func GetHash(hashKey string) string {
+	hash := hmac.New(sha256.New, []byte(hashKey))
+	signature := hex.EncodeToString(hash.Sum(nil))
+
+	return signature
 }
 
 func SignRequest(next http.Handler) http.Handler {

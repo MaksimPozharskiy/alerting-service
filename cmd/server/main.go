@@ -54,8 +54,8 @@ func main() {
 		panic(err)
 	}
 
-	if flagHashKey != "" {
-		signature.SetHashKey(flagHashKey)
+	if (flagHashKey != "none") && (flagHashKey != "") {
+		signature.SetServerHashKey(flagHashKey)
 		r.Use(signature.SignRequest)
 		r.Use(signature.SignResponse)
 	}

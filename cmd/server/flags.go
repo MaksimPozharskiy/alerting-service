@@ -51,7 +51,7 @@ func parseFlags() error {
 		flagDBConnectionString = envDBConnectionString
 	}
 
-	if envHashKey := os.Getenv("KEY"); envHashKey != "" {
+	if envHashKey := os.Getenv("KEY"); (envHashKey != "") && (envHashKey != "none") {
 		flagHashKey = envHashKey
 	}
 

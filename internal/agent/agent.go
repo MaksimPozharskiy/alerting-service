@@ -121,6 +121,12 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, address string)
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
+	// conf := config.GetConfig()
+	// if conf.HashKey != "" {
+	// 	signature := sign.GetHash(conf.HashKey)
+	// 	req.Header.Set(sign.HashSHA256, signature)
+	// }
+
 	response, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -155,6 +161,12 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, address strin
 	}
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
+
+	// conf := config.GetConfig()
+	// if conf.HashKey != "" {
+	// 	signature := sign.GetHash(conf.HashKey)
+	// 	req.Header.Set(sign.HashSHA256, signature)
+	// }
 
 	response, err := client.Do(req)
 	if err != nil {
