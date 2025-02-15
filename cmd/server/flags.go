@@ -13,6 +13,7 @@ var (
 	flagFileStoragePath    string
 	flagRestore            bool
 	flagDBConnectionString string
+	flagHashKey            string
 )
 
 // -d "host=localhost user=metrics password=userpassword dbname=metrics sslmode=disable"
@@ -22,6 +23,7 @@ func parseFlags() error {
 	flag.IntVar(&flagStoreInterval, "i", 300, "interbal for storing data on a disk")
 	flag.StringVar(&flagFileStoragePath, "f", "./backup", "path to storing file")
 	flag.StringVar(&flagDBConnectionString, "d", "", "connetction string for postgress db")
+	flag.StringVar(&flagHashKey, "k", "", "hash key string for generation signature")
 	flag.BoolVar(&flagRestore, "r", true, "restore or not data from file after running server")
 	flag.Parse()
 
@@ -47,6 +49,10 @@ func parseFlags() error {
 
 	if envDBConnectionString := os.Getenv("DATABASE_DSN"); envDBConnectionString != "" {
 		flagDBConnectionString = envDBConnectionString
+	}
+
+	if envHashKey := os.Getenv("KEY"); envHashKey != "" {
+		flagHashKey = envHashKey
 	}
 
 	if envRestore := os.Getenv("RESTORE"); envRestore != "" {

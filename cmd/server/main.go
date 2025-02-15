@@ -9,6 +9,7 @@ import (
 	"alerting-service/internal/observability"
 	"alerting-service/internal/repository"
 	"alerting-service/internal/server"
+	"alerting-service/internal/signature"
 	"alerting-service/internal/usecases"
 	"context"
 	"database/sql"
@@ -51,6 +52,12 @@ func main() {
 	r := chi.NewRouter()
 	if err := logger.Initialize(flagLogLevel); err != nil {
 		panic(err)
+	}
+
+	if flagHashKey != "" {
+		signature.SetHashKey(flagHashKey)
+		r.Use(signature.SignRequest)
+		r.Use(signature.SignResponse)
 	}
 
 	r.Use(logger.ResponseLogger)
