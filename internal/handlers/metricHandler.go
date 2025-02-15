@@ -220,7 +220,6 @@ func handleError(w http.ResponseWriter, err error) {
 		statusCode = http.StatusInternalServerError
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
 	http.Error(w, fmt.Sprint(err), statusCode)
+	w.Header().Set("Content-Type", "application/json")
 }

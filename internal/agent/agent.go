@@ -3,6 +3,8 @@ package agent
 import (
 	"alerting-service/internal/config"
 	"alerting-service/internal/models"
+	sign "alerting-service/internal/signature"
+
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -40,7 +42,7 @@ func RuntimeAgent(client *http.Client) {
 	for {
 		time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
 		stats["RandomValue"] = rand.Float64()
-		sendMetrics(client, stats, conf.RunAddr)
+		sendMetrics(client, stats, conf)
 	}
 }
 
@@ -74,7 +76,7 @@ func getMemStatData(memStat *runtime.MemStats, stats stats) {
 	stats["TotalAlloc"] = float64(memStat.TotalAlloc)
 }
 
-func sendMetrics(client *http.Client, stats stats, address string) {
+func sendMetrics(client *http.Client, stats stats, conf *config.Config) {
 	for key, val := range stats {
 		metric := models.Metrics{
 			ID:    key,
@@ -82,7 +84,7 @@ func sendMetrics(client *http.Client, stats stats, address string) {
 			Value: &val,
 		}
 
-		sendGaugeMetric(client, metric, address)
+		sendGaugeMetric(client, metric, conf)
 	}
 
 	pollCount := int64(pollCount)
@@ -91,11 +93,11 @@ func sendMetrics(client *http.Client, stats stats, address string) {
 		MType: "counter",
 		Delta: &pollCount,
 	}
-	sendCounterMetric(client, metric, address)
+	sendCounterMetric(client, metric, conf)
 }
 
-func sendGaugeMetric(client *http.Client, metric models.Metrics, address string) {
-	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", address, metric.ID, *metric.Value)
+func sendGaugeMetric(client *http.Client, metric models.Metrics, conf *config.Config) {
+	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", conf.RunAddr, metric.ID, *metric.Value)
 
 	body, err := json.Marshal(metric)
 	if err != nil {
@@ -121,11 +123,10 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, address string)
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
-	// conf := config.GetConfig()
-	// if conf.HashKey != "" {
-	// 	signature := sign.GetHash(conf.HashKey)
-	// 	req.Header.Set(sign.HashSHA256, signature)
-	// }
+	if conf.HashKey != "" {
+		signature := sign.GetHash(conf.HashKey)
+		req.Header.Set(sign.HashSHA256, signature)
+	}
 
 	response, err := client.Do(req)
 	if err != nil {
@@ -136,8 +137,8 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, address string)
 	defer response.Body.Close()
 }
 
-func sendCounterMetric(client *http.Client, metric models.Metrics, address string) {
-	url := fmt.Sprintf("http://%s/update/counter/%s/%d", address, metric.ID, *metric.Delta)
+func sendCounterMetric(client *http.Client, metric models.Metrics, conf *config.Config) {
+	url := fmt.Sprintf("http://%s/update/counter/%s/%d", conf.RunAddr, metric.ID, *metric.Delta)
 
 	body, err := json.Marshal(metric)
 	if err != nil {
@@ -162,11 +163,10 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, address strin
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
-	// conf := config.GetConfig()
-	// if conf.HashKey != "" {
-	// 	signature := sign.GetHash(conf.HashKey)
-	// 	req.Header.Set(sign.HashSHA256, signature)
-	// }
+	if conf.HashKey != "" {
+		signature := sign.GetHash(conf.HashKey)
+		req.Header.Set(sign.HashSHA256, signature)
+	}
 
 	response, err := client.Do(req)
 	if err != nil {
