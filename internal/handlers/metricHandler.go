@@ -5,10 +5,8 @@ import (
 	"alerting-service/internal/models"
 	"alerting-service/internal/usecases"
 	"alerting-service/internal/utils"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	v "alerting-service/internal/validation"
@@ -64,90 +62,53 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Reques
 }
 
 func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) {
-	logger.Log.Debug("Received request for GetMetric",
-		zap.String("method", r.Method),
-		zap.String("url", r.URL.Path))
-
-	// Проверка метода запроса
 	if r.Method != http.MethodPost {
-		logger.Log.Warn("Method not allowed", zap.String("received_method", r.Method))
 		handleError(w, v.ErrMethodNotAllowed)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 
-	// Логируем тело запроса
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		logger.Log.Error("Failed to read request body", zap.Error(err))
+	logger.Log.Debug("decoding request")
+	var req models.Metrics
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	logger.Log.Debug("Request body received", zap.String("body", string(body)))
 
-	// Восстанавливаем тело запроса для JSON-декодера
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-	// Декодируем JSON
-	var req models.Metrics
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
-		logger.Log.Warn("Cannot decode request JSON body", zap.Error(err), zap.String("body", string(body)))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	logger.Log.Debug("Decoded JSON", zap.Any("metric", req))
-
-	// Проверяем, передан ли ID
-	if req.ID == "" {
-		logger.Log.Warn("Missing metric ID in request", zap.Any("metric", req))
-		handleError(w, v.ErrInvalidMetricValue)
-		return
-	}
-
-	// Проверяем тип метрики
-	if req.MType != models.GaugeMetric && req.MType != models.CounterMetric {
-		logger.Log.Warn("Invalid metric type", zap.String("received_type", req.MType))
+	if req.MType == "" {
+		logger.Log.Warn("Empty metric type received", zap.Any("metric", req))
 		handleError(w, v.ErrInvalidMetricType)
 		return
 	}
 
-	// Создаём объект метрики
 	metric := models.Metrics{
 		ID:    req.ID,
 		MType: req.MType,
 	}
 
-	// Вызываем обработку данных
-	logger.Log.Debug("Calling GetMetricDataProcessing", zap.Any("metric", metric))
 	value, err := handler.metricUsecase.GetMetricDataProcessing(metric)
 	if err != nil {
-		logger.Log.Error("GetMetricDataProcessing returned an error", zap.Error(err))
 		handleError(w, err)
 		return
 	}
 
-	// Записываем значение в метрику
 	if metric.MType == models.GaugeMetric {
 		metric.Value = &value
-		logger.Log.Debug("Metric is gauge", zap.Float64("value", value))
 	} else {
 		val := int64(value)
 		metric.Delta = &val
-		logger.Log.Debug("Metric is counter", zap.Int64("delta", val))
 	}
 
-	// Отправляем ответ
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(metric); err != nil {
-		logger.Log.Error("Error encoding response", zap.Error(err))
+		logger.Log.Debug("error encoding response", zap.Error(err))
 		return
 	}
-
-	logger.Log.Debug("Successfully sent HTTP 200 response", zap.Any("metric", metric))
+	logger.Log.Debug("sending HTTP 200 response")
 }
 
 func (handler *metricHandler) UpdateURLMetric(w http.ResponseWriter, req *http.Request) {
@@ -258,6 +219,8 @@ func handleError(w http.ResponseWriter, err error) {
 	if !ok {
 		statusCode = http.StatusInternalServerError
 	}
+
+	w.Header().Set("Content-Type", "application/json")
 
 	http.Error(w, fmt.Sprint(err), statusCode)
 }
