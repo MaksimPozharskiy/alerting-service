@@ -1,7 +1,6 @@
-package repositories
+package repository
 
 import (
-	"alerting-service/internal/usecases"
 	"reflect"
 	"testing"
 )
@@ -9,7 +8,7 @@ import (
 func TestNewStorageRepository(t *testing.T) {
 	tests := []struct {
 		name string
-		want usecases.MemStorage
+		want StorageRepository
 	}{
 		{
 			name: "new repository test",
@@ -19,7 +18,7 @@ func TestNewStorageRepository(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			want := NewStorageRepository()
+			want := NewMemStorageRepository()
 
 			if !reflect.DeepEqual(want, test.want) {
 				t.Errorf("want: %v, got: %v", test.want, want)
@@ -29,7 +28,7 @@ func TestNewStorageRepository(t *testing.T) {
 }
 
 func TestGetCounterMetric(t *testing.T) {
-	storage := NewStorageRepository()
+	storage := NewMemStorageRepository()
 	storage.UpdateCounterMetric("temp", 25)
 
 	tests := []struct {
@@ -53,7 +52,7 @@ func TestGetCounterMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			want, ok := storage.GetCounterMetric(test.metricName)
+			want, ok, _ := storage.GetCounterMetric(test.metricName)
 
 			if ok != test.wantOk {
 				t.Errorf("want ok: %v, got: %v", test.wantOk, ok)
@@ -66,7 +65,7 @@ func TestGetCounterMetric(t *testing.T) {
 	}
 }
 func TestGetGaugeMetric(t *testing.T) {
-	storage := NewStorageRepository()
+	storage := NewMemStorageRepository()
 	storage.UpdateGaugeMetric("temp", 25.2)
 
 	tests := []struct {
@@ -90,7 +89,7 @@ func TestGetGaugeMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			want, ok := storage.GetGaugeMetric(test.metricName)
+			want, ok, _ := storage.GetGaugeMetric(test.metricName)
 
 			if ok != test.wantOk {
 				t.Errorf("want ok: %v, got: %v", test.wantOk, ok)
@@ -104,7 +103,7 @@ func TestGetGaugeMetric(t *testing.T) {
 }
 
 func TestUpdateGaugeMetric(t *testing.T) {
-	storage := NewStorageRepository()
+	storage := NewMemStorageRepository()
 
 	tests := []struct {
 		name, metricName  string
@@ -121,7 +120,7 @@ func TestUpdateGaugeMetric(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			storage.UpdateGaugeMetric(test.metricName, test.metricValue)
-			want, _ := storage.GetGaugeMetric(test.metricName)
+			want, _, _ := storage.GetGaugeMetric(test.metricName)
 
 			if want != test.want {
 				t.Errorf("want: %+v, got: %+v", test.want, want)
@@ -153,11 +152,11 @@ func TestUpdateCounterMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			storage := NewStorageRepository()
+			storage := NewMemStorageRepository()
 			storage.UpdateCounterMetric(test.metricName, test.initialValue)
 
 			storage.UpdateCounterMetric(test.metricName, test.metricValue)
-			want, _ := storage.GetCounterMetric(test.metricName)
+			want, _, _ := storage.GetCounterMetric(test.metricName)
 
 			if want != test.want {
 				t.Errorf("want: %+v, got: %+v", test.want, want)

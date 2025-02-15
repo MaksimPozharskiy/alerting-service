@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	repositories "alerting-service/internal/repository"
+	repository "alerting-service/internal/repository"
 	"alerting-service/internal/usecases"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestNewMetricHandler(t *testing.T) {
-	metricUsecase := usecases.NewMetricUsecase(repositories.NewStorageRepository())
+	metricUsecase := usecases.NewMetricUsecase(repository.NewMemStorageRepository())
 
 	tests := []struct {
 		name string
@@ -37,7 +37,7 @@ func TestNewMetricHandler(t *testing.T) {
 }
 
 func TestUpdateMetric(t *testing.T) {
-	handler := NewMetricHandler(usecases.NewMetricUsecase(repositories.NewStorageRepository()))
+	handler := NewMetricHandler(usecases.NewMetricUsecase(repository.NewMemStorageRepository()))
 
 	tests := []struct {
 		name         string

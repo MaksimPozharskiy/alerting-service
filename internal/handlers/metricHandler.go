@@ -21,6 +21,7 @@ type metricHandler struct {
 func NewMetricHandler(metricUsecase usecases.MetricUsecase) *metricHandler {
 	return &metricHandler{metricUsecase: metricUsecase}
 }
+
 func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handleError(w, v.ErrMethodNotAllowed)
@@ -156,7 +157,11 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	allMetrics := handler.metricUsecase.GetMetrics()
+	allMetrics, err := handler.metricUsecase.GetMetrics()
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 
 	w.Header().Set("Content-type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -169,6 +174,37 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 			w.Write([]byte(fmt.Sprintf("%s: %d\n", metric.ID, *metric.Delta)))
 		}
 	}
+}
+func (handler *metricHandler) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		logger.Log.Warn("Invalid request method", zap.String("method", r.Method))
+		handleError(w, v.ErrMethodNotAllowed)
+		return
+	}
+
+	logger.Log.Debug("Decoding request body for batch metric update")
+	var metrics []models.Metrics
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&metrics); err != nil {
+		logger.Log.Error("Cannot decode request JSON body", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	logger.Log.Debug("Received metrics for update", zap.Int("metrics_count", len(metrics)), zap.Any("metrics", metrics))
+
+	err := handler.metricUsecase.UpdateMetrics(metrics)
+	if err != nil {
+		logger.Log.Error("Error updating metrics", zap.Error(err))
+		handleError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	logger.Log.Debug("Successfully processed batch update, sending HTTP 200 response")
 }
 
 func handleError(w http.ResponseWriter, err error) {

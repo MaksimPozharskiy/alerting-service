@@ -2,13 +2,16 @@ package main
 
 import (
 	"alerting-service/internal/compressor"
+	"alerting-service/internal/db"
 	handlers "alerting-service/internal/handlers"
 	"alerting-service/internal/logger"
 	"alerting-service/internal/metrics"
-	repositories "alerting-service/internal/repository"
+	"alerting-service/internal/observability"
+	"alerting-service/internal/repository"
 	"alerting-service/internal/server"
 	"alerting-service/internal/usecases"
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
@@ -24,9 +27,24 @@ func main() {
 		panic(err)
 	}
 
-	storageRepository := repositories.NewStorageRepository()
+	var storageRepository repository.StorageRepository
+	var dbConn *sql.DB
+
+	if flagDBConnectionString != "" {
+		dbConn, err = db.Connect(flagDBConnectionString)
+		if err != nil {
+			panic(err)
+		} else {
+			defer dbConn.Close()
+			storageRepository = repository.NewDBStorageRepository(dbConn)
+		}
+	} else {
+		storageRepository = repository.NewMemStorageRepository()
+	}
+
 	metricUsecase := usecases.NewMetricUsecase(storageRepository)
 	metricsHandler := handlers.NewMetricHandler(metricUsecase)
+	obsHandler := observability.NewObsHandler(dbConn)
 
 	server := server.NewServer(flagRunAddr)
 
@@ -43,6 +61,10 @@ func main() {
 		r.Post("/", metricsHandler.UpdateMetric)
 	})
 
+	r.Route("/updates", func(r chi.Router) {
+		r.Post("/", metricsHandler.UpdateMetrics)
+	})
+
 	r.Route("/value", func(r chi.Router) {
 		r.Post("/", metricsHandler.GetMetric)
 	})
@@ -55,6 +77,8 @@ func main() {
 		r.Get("/", metricsHandler.GetURLMetric)
 	})
 
+	r.Get("/ping", obsHandler.HealthCheckDB)
+
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.GetAllMetrics)
 	})
@@ -65,6 +89,9 @@ func main() {
 	}
 
 	allMetrics, err := backupController.ReadMetrics()
+	if err != nil {
+		panic(err)
+	}
 	storageRepository.SetMetrics(allMetrics)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -82,7 +109,10 @@ func main() {
 					panic(err)
 				}
 
-				allMetrics := storageRepository.GetMetrics()
+				allMetrics, err := storageRepository.GetMetrics()
+				if err != nil {
+					panic(err)
+				}
 
 				err = backupController.WriteMetrics(allMetrics)
 
@@ -106,7 +136,7 @@ func gracefulShutdown(cancelFunc context.CancelFunc, srv server.Server) {
 
 	fmt.Println("graceful shutdown", s)
 
-	cancelFunc() // Останавливаем фоновые горутины
+	cancelFunc()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
