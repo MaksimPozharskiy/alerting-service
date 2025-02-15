@@ -124,7 +124,7 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, conf *config.Co
 	req.Header.Set("Content-Type", "application/json")
 
 	if conf.HashKey != "" {
-		signature := sign.GetHash(conf.HashKey)
+		signature := sign.GetHash(body, conf.HashKey)
 		req.Header.Set(sign.HashSHA256, signature)
 	}
 
@@ -164,7 +164,7 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, conf *config.
 	req.Header.Set("Content-Type", "application/json")
 
 	if conf.HashKey != "" {
-		signature := sign.GetHash(conf.HashKey)
+		signature := sign.GetHash(body, conf.HashKey)
 		req.Header.Set(sign.HashSHA256, signature)
 	}
 
