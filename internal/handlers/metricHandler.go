@@ -213,13 +213,24 @@ func (handler *metricHandler) UpdateMetrics(w http.ResponseWriter, r *http.Reque
 	logger.Log.Debug("Successfully processed batch update, sending HTTP 200 response")
 }
 
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
 func handleError(w http.ResponseWriter, err error) {
 	statusCode, ok := v.ErrMap[err]
-
 	if !ok {
 		statusCode = http.StatusInternalServerError
 	}
 
-	http.Error(w, fmt.Sprint(err), statusCode)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	errorResponse := ErrorResponse{
+		Error: err.Error(),
+	}
+
+	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), statusCode)
+	}
 }
