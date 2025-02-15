@@ -47,24 +47,36 @@ func (d *DBStorageImp) GetGaugeMetric(key string) (float64, bool, error) {
 }
 
 func (d *DBStorageImp) UpdateGaugeMetric(metricName string, value float64) error {
-	sqlStatement := `
+	query := `
 INSERT INTO metrics (name, type, value, delta)
 VALUES ($1, $2, $3, NULL)
 ON CONFLICT (name) DO UPDATE
 SET value = EXCLUDED.value, updated_at = NOW();`
 
-	_, err := d.retryExecute(context.Background(), sqlStatement, metricName, "gauge", value)
+	stmt, err := d.db.PrepareContext(context.Background(), query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = d.retryExecute(context.Background(), stmt, metricName, "gauge", value)
 	return err
 }
 
 func (d *DBStorageImp) UpdateCounterMetric(metricName string, value int) error {
-	sqlStatement := `
+	query := `
 INSERT INTO metrics (name, type, value, delta)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (name) DO UPDATE
 SET delta = metrics.delta + EXCLUDED.delta, updated_at = NOW();`
 
-	_, err := d.retryExecute(context.Background(), sqlStatement, metricName, "counter", nil, value)
+	stmt, err := d.db.PrepareContext(context.Background(), query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = d.retryExecute(context.Background(), stmt, metricName, "counter", nil, value)
 	return err
 
 }
@@ -133,6 +145,12 @@ func (d *DBStorageImp) UpdateMetrics(metrics []models.Metrics) error {
               SET delta = COALESCE(metrics.delta, 0) + COALESCE(EXCLUDED.delta, 0), 
                   value = COALESCE(EXCLUDED.value, metrics.value);`
 
+	stmt, err := d.db.PrepareContext(context.Background(), query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
 	for _, metric := range metrics {
 		logger.Log.Debug("Processing metric", zap.String("id", metric.ID), zap.String("type", metric.MType))
 
@@ -145,7 +163,7 @@ func (d *DBStorageImp) UpdateMetrics(metrics []models.Metrics) error {
 			delta = metric.Delta
 		}
 
-		_, err := d.retryExecute(context.Background(), query, metric.ID, metric.MType, value, delta)
+		_, err := d.retryExecute(context.Background(), stmt, metric.ID, metric.MType, value, delta)
 		if err != nil {
 			logger.Log.Error("Error executing SQL query", zap.String("metric_id", metric.ID), zap.Error(err))
 			return err
@@ -166,14 +184,14 @@ func (d *DBStorageImp) PingContext(ctx context.Context) error {
 	return d.db.PingContext(ctx)
 }
 
-func (d *DBStorageImp) retryExecute(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (d *DBStorageImp) retryExecute(ctx context.Context, stmt *sql.Stmt, args ...any) (sql.Result, error) {
 	var err error
 	var result sql.Result
 
 	retryDelays := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
 
 	for attempt := 0; attempt <= len(retryDelays); attempt++ {
-		result, err = d.db.ExecContext(ctx, query, args...)
+		result, err = stmt.ExecContext(ctx, args...)
 		if err == nil {
 			return result, nil
 		}

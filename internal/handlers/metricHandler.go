@@ -14,8 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var metricsBufSize int = 20
-
 type metricHandler struct {
 	metricUsecase usecases.MetricUsecase
 }
