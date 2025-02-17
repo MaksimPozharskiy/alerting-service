@@ -54,15 +54,12 @@ func main() {
 		panic(err)
 	}
 
-	if (flagHashKey != "none") && (flagHashKey != "") {
-		signature.SetServerHashKey(flagHashKey)
-		r.Use(signature.SignRequest)
-		r.Use(signature.SignResponse)
-	}
-
-	r.Use(logger.ResponseLogger)
 	r.Use(logger.RequestLogger)
+	r.Use(logger.ResponseLogger)
 	r.Use(compressor.GzipMiddleware)
+
+	signature.SetServerHashKey(flagHashKey)
+	r.Use(signature.HashMiddleware)
 
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", metricsHandler.UpdateMetric)
