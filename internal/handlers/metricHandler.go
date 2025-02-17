@@ -51,7 +51,7 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Reques
 
 	handler.metricUsecase.MetricDataProcessing(metric)
 
-	w.Header().Set("Content-type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(metric); err != nil {
@@ -66,6 +66,7 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) 
 		handleError(w, v.ErrMethodNotAllowed)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 
 	logger.Log.Debug("decoding request")
 	var req models.Metrics
@@ -74,6 +75,12 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) 
 	if err := dec.Decode(&req); err != nil {
 		logger.Log.Debug("cannot decode request JSON body", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if req.MType == "" {
+		logger.Log.Warn("Empty metric type received", zap.Any("metric", req))
+		handleError(w, v.ErrInvalidMetricType)
 		return
 	}
 
@@ -95,7 +102,6 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) 
 		metric.Delta = &val
 	}
 
-	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(metric); err != nil {
@@ -123,7 +129,7 @@ func (handler *metricHandler) UpdateURLMetric(w http.ResponseWriter, req *http.R
 		return
 	}
 
-	w.Header().Set("Content-type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -145,7 +151,7 @@ func (handler *metricHandler) GetURLMetric(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	w.Header().Set("Content-type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
 	w.Write([]byte(fmt.Sprint(value)))
@@ -163,7 +169,7 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	w.Header().Set("Content-type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
 	for _, metric := range allMetrics {
@@ -201,7 +207,7 @@ func (handler *metricHandler) UpdateMetrics(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	w.Header().Set("Content-type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	logger.Log.Debug("Successfully processed batch update, sending HTTP 200 response")
