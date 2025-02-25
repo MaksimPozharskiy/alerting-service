@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 var pollCount int
@@ -38,13 +40,11 @@ func RuntimeAgent(client *http.Client) {
 
 	var stats = make(map[string]float64)
 
-	const numJobs = 3
-	metricsChan := make(chan models.Metrics, numJobs)
+	metricsChan := make(chan models.Metrics, 30)
 	// @TODO нужен ли результирующий канал? Например с err
 	// resultsChan := make(chan bool, numJobs)
 
-	const numWorkers = 3
-	for w := 1; w <= numWorkers; w++ {
+	for w := 1; w <= conf.RateLimit; w++ {
 
 		worker := sentMetricWorker{
 			client: client,
@@ -60,6 +60,13 @@ func RuntimeAgent(client *http.Client) {
 			pollCount++
 			runtime.ReadMemStats(memStat)
 			getMemStatData(memStat, stats)
+		}
+	}()
+
+	go func() {
+		for {
+			time.Sleep(time.Duration(conf.PollInterval) * time.Second)
+			getVitualMemStatData(stats)
 		}
 	}()
 
@@ -217,4 +224,17 @@ func (w sentMetricWorker) sendMetric(metricsChan <-chan models.Metrics) {
 			sendCounterMetric(w.client, metric, w.conf)
 		}
 	}
+}
+
+func getVitualMemStatData(stats stats) {
+	v, err := mem.VirtualMemory()
+
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	stats["TotalMemory"] = float64(v.Total)
+	stats["FreeMemory"] = float64(v.Free)
+	stats["CPUutilization1"] = float64(v.UsedPercent)
 }

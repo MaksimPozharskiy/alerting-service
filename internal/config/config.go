@@ -15,6 +15,7 @@ type Config struct {
 	PollInterval    int
 	ReportInterval  int
 	HashKey         string
+	RateLimit       int
 }
 
 func GetConfig() *Config {
@@ -23,6 +24,7 @@ func GetConfig() *Config {
 	flag.StringVar(&cfg.RunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.IntVar(&cfg.PollInterval, "p", 2, "how often to get metrics from runtime, seconds")
 	flag.IntVar(&cfg.ReportInterval, "r", 10, "how often to send metrics to server, seconds")
+	flag.IntVar(&cfg.RateLimit, "l", 3, "count of workers for sending metrics")
 	flag.StringVar(&cfg.HashKey, "k", "", "hash key string for generation signature")
 	flag.Parse()
 
@@ -44,6 +46,12 @@ func GetConfig() *Config {
 
 	if envHashKey := os.Getenv("KEY"); envHashKey != "" {
 		cfg.HashKey = envHashKey
+	}
+
+	if envRateLimit := os.Getenv("RATE_LIMIT"); envRateLimit != "" {
+		if envRateLimit, err := strconv.Atoi(envRateLimit); err == nil {
+			cfg.RateLimit = envRateLimit
+		}
 	}
 
 	return cfg
