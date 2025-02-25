@@ -3,6 +3,8 @@ package agent
 import (
 	"alerting-service/internal/config"
 	"alerting-service/internal/models"
+	sign "alerting-service/internal/signature"
+
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -13,11 +15,21 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 var pollCount int
 
 type stats map[string]float64
+
+type sentMetricWorker struct {
+	client *http.Client
+	conf   *config.Config
+}
+
+// @TODO Переписать так что бы конфиг не передавался через аргументы, а брался через структурку
+type SendMetric func(client *http.Client, metric models.Metrics, conf *config.Config)
 
 func RuntimeAgent(client *http.Client) {
 	conf := config.GetConfig()
@@ -28,6 +40,20 @@ func RuntimeAgent(client *http.Client) {
 
 	var stats = make(map[string]float64)
 
+	metricsChan := make(chan models.Metrics, 30)
+	// @TODO нужен ли результирующий канал? Например с err
+	// resultsChan := make(chan bool, numJobs)
+
+	for w := 1; w <= conf.RateLimit; w++ {
+
+		worker := sentMetricWorker{
+			client: client,
+			conf:   conf,
+		}
+
+		go worker.sendMetric(metricsChan)
+	}
+
 	go func() {
 		for {
 			time.Sleep(time.Duration(conf.PollInterval) * time.Second)
@@ -37,11 +63,24 @@ func RuntimeAgent(client *http.Client) {
 		}
 	}()
 
-	for {
-		time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
-		stats["RandomValue"] = rand.Float64()
-		sendMetrics(client, stats, conf.RunAddr)
-	}
+	go func() {
+		for {
+			time.Sleep(time.Duration(conf.PollInterval) * time.Second)
+			getVitualMemStatData(stats)
+		}
+	}()
+
+	go func() {
+		for {
+			time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
+			stats["RandomValue"] = rand.Float64()
+			sendMetrics(stats, metricsChan)
+		}
+
+	}()
+
+	select {}
+
 }
 
 func getMemStatData(memStat *runtime.MemStats, stats stats) {
@@ -74,15 +113,15 @@ func getMemStatData(memStat *runtime.MemStats, stats stats) {
 	stats["TotalAlloc"] = float64(memStat.TotalAlloc)
 }
 
-func sendMetrics(client *http.Client, stats stats, address string) {
-	for key, val := range stats {
+func sendMetrics(stats stats, metricChan chan models.Metrics) {
+	for key, value := range stats {
 		metric := models.Metrics{
 			ID:    key,
 			MType: "gauge",
-			Value: &val,
+			Value: &value,
 		}
 
-		sendGaugeMetric(client, metric, address)
+		metricChan <- metric
 	}
 
 	pollCount := int64(pollCount)
@@ -91,11 +130,12 @@ func sendMetrics(client *http.Client, stats stats, address string) {
 		MType: "counter",
 		Delta: &pollCount,
 	}
-	sendCounterMetric(client, metric, address)
+
+	metricChan <- metric
 }
 
-func sendGaugeMetric(client *http.Client, metric models.Metrics, address string) {
-	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", address, metric.ID, *metric.Value)
+func sendGaugeMetric(client *http.Client, metric models.Metrics, conf *config.Config) {
+	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", conf.RunAddr, metric.ID, *metric.Value)
 
 	body, err := json.Marshal(metric)
 	if err != nil {
@@ -121,6 +161,11 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, address string)
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
+	if conf.HashKey != "" {
+		signature := sign.GetHash(body, []byte(conf.HashKey))
+		req.Header.Set(sign.HashSHA256, signature)
+	}
+
 	response, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -130,8 +175,8 @@ func sendGaugeMetric(client *http.Client, metric models.Metrics, address string)
 	defer response.Body.Close()
 }
 
-func sendCounterMetric(client *http.Client, metric models.Metrics, address string) {
-	url := fmt.Sprintf("http://%s/update/counter/%s/%d", address, metric.ID, *metric.Delta)
+func sendCounterMetric(client *http.Client, metric models.Metrics, conf *config.Config) {
+	url := fmt.Sprintf("http://%s/update/counter/%s/%d", conf.RunAddr, metric.ID, *metric.Delta)
 
 	body, err := json.Marshal(metric)
 	if err != nil {
@@ -156,6 +201,11 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, address strin
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
+	if conf.HashKey != "" {
+		signature := sign.GetHash(body, []byte(conf.HashKey))
+		req.Header.Set(sign.HashSHA256, signature)
+	}
+
 	response, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -163,4 +213,28 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, address strin
 	}
 
 	defer response.Body.Close()
+}
+
+func (w sentMetricWorker) sendMetric(metricsChan <-chan models.Metrics) {
+	for metric := range metricsChan {
+		switch metric.MType {
+		case models.GaugeMetric:
+			sendGaugeMetric(w.client, metric, w.conf)
+		case models.CounterMetric:
+			sendCounterMetric(w.client, metric, w.conf)
+		}
+	}
+}
+
+func getVitualMemStatData(stats stats) {
+	v, err := mem.VirtualMemory()
+
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	stats["TotalMemory"] = float64(v.Total)
+	stats["FreeMemory"] = float64(v.Free)
+	stats["CPUutilization1"] = float64(v.UsedPercent)
 }
