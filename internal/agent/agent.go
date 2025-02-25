@@ -21,6 +21,14 @@ var pollCount int
 
 type stats map[string]float64
 
+type sentMetricWorker struct {
+	client *http.Client
+	conf   *config.Config
+}
+
+// @TODO Переписать так что бы конфиг не передавался через аргументы, а брался через структурку
+type SendMetric func(client *http.Client, metric models.Metrics, conf *config.Config)
+
 func RuntimeAgent(client *http.Client) {
 	conf := config.GetConfig()
 
@@ -29,6 +37,22 @@ func RuntimeAgent(client *http.Client) {
 	runtime.ReadMemStats(memStat)
 
 	var stats = make(map[string]float64)
+
+	const numJobs = 3
+	metricsChan := make(chan models.Metrics, numJobs)
+	// @TODO нужен ли результирующий канал? Например с err
+	// resultsChan := make(chan bool, numJobs)
+
+	const numWorkers = 3
+	for w := 1; w <= numWorkers; w++ {
+
+		worker := sentMetricWorker{
+			client: client,
+			conf:   conf,
+		}
+
+		go worker.sendMetric(metricsChan)
+	}
 
 	go func() {
 		for {
@@ -39,11 +63,17 @@ func RuntimeAgent(client *http.Client) {
 		}
 	}()
 
-	for {
-		time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
-		stats["RandomValue"] = rand.Float64()
-		sendMetrics(client, stats, conf)
-	}
+	go func() {
+		for {
+			time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
+			stats["RandomValue"] = rand.Float64()
+			sendMetrics(stats, metricsChan)
+		}
+
+	}()
+
+	select {}
+
 }
 
 func getMemStatData(memStat *runtime.MemStats, stats stats) {
@@ -76,15 +106,15 @@ func getMemStatData(memStat *runtime.MemStats, stats stats) {
 	stats["TotalAlloc"] = float64(memStat.TotalAlloc)
 }
 
-func sendMetrics(client *http.Client, stats stats, conf *config.Config) {
-	for key, val := range stats {
+func sendMetrics(stats stats, metricChan chan models.Metrics) {
+	for key, value := range stats {
 		metric := models.Metrics{
 			ID:    key,
 			MType: "gauge",
-			Value: &val,
+			Value: &value,
 		}
 
-		sendGaugeMetric(client, metric, conf)
+		metricChan <- metric
 	}
 
 	pollCount := int64(pollCount)
@@ -93,7 +123,8 @@ func sendMetrics(client *http.Client, stats stats, conf *config.Config) {
 		MType: "counter",
 		Delta: &pollCount,
 	}
-	sendCounterMetric(client, metric, conf)
+
+	metricChan <- metric
 }
 
 func sendGaugeMetric(client *http.Client, metric models.Metrics, conf *config.Config) {
@@ -175,4 +206,15 @@ func sendCounterMetric(client *http.Client, metric models.Metrics, conf *config.
 	}
 
 	defer response.Body.Close()
+}
+
+func (w sentMetricWorker) sendMetric(metricsChan <-chan models.Metrics) {
+	for metric := range metricsChan {
+		switch metric.MType {
+		case models.GaugeMetric:
+			sendGaugeMetric(w.client, metric, w.conf)
+		case models.CounterMetric:
+			sendCounterMetric(w.client, metric, w.conf)
+		}
+	}
 }

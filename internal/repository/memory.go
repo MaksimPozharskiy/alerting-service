@@ -2,11 +2,13 @@ package repository
 
 import (
 	"alerting-service/internal/models"
+	"sync"
 )
 
 type MemStorageImp struct {
 	gauges   map[string]float64
 	counters map[string]int
+	mu       sync.Mutex
 }
 
 func NewMemStorageRepository() StorageRepository {
@@ -30,12 +32,16 @@ func (s *MemStorageImp) GetGaugeMetric(key string) (float64, bool, error) {
 }
 
 func (s *MemStorageImp) UpdateGaugeMetric(metricName string, value float64) error {
+	s.mu.Lock()
 	s.gauges[metricName] = value
+	s.mu.Unlock()
 	return nil
 }
 
 func (s *MemStorageImp) UpdateCounterMetric(metricName string, value int) error {
+	s.mu.Lock()
 	s.counters[metricName] += value
+	s.mu.Unlock()
 	return nil
 }
 
