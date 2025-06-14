@@ -36,7 +36,7 @@ func GetConfig() *Config {
 
 	if envPollInterval := os.Getenv("POLL_INTERVAL"); envPollInterval != "" {
 		if envPollInterval, err := strconv.Atoi(envPollInterval); err == nil {
-			cfg.ReportInterval = envPollInterval
+			cfg.PollInterval = envPollInterval
 		}
 	}
 
