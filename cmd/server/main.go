@@ -9,6 +9,7 @@ import (
 	"alerting-service/internal/observability"
 	"alerting-service/internal/repository"
 	"alerting-service/internal/server"
+	"alerting-service/internal/signature"
 	"alerting-service/internal/usecases"
 	"context"
 	"database/sql"
@@ -53,9 +54,12 @@ func main() {
 		panic(err)
 	}
 
-	r.Use(logger.ResponseLogger)
 	r.Use(logger.RequestLogger)
+	r.Use(logger.ResponseLogger)
 	r.Use(compressor.GzipMiddleware)
+
+	signature.SetServerHashKey(flagHashKey)
+	r.Use(signature.HashMiddleware)
 
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", metricsHandler.UpdateMetric)
