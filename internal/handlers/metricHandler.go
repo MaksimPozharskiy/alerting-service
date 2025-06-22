@@ -18,10 +18,12 @@ type metricHandler struct {
 	metricUsecase usecases.MetricUsecase
 }
 
+// NewMetricHandler creates a new instance of metricHandler
 func NewMetricHandler(metricUsecase usecases.MetricUsecase) *metricHandler {
 	return &metricHandler{metricUsecase: metricUsecase}
 }
 
+// UpdateMetric handles a POST request with a metric in JSON format and stores it
 func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handleError(w, v.ErrMethodNotAllowed)
@@ -61,6 +63,7 @@ func (handler *metricHandler) UpdateMetric(w http.ResponseWriter, r *http.Reques
 	logger.Log.Debug("sending HTTP 200 response")
 }
 
+// GetMetric handles a POST request to retrieve the value of a specific metric
 func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		handleError(w, v.ErrMethodNotAllowed)
@@ -111,6 +114,7 @@ func (handler *metricHandler) GetMetric(w http.ResponseWriter, r *http.Request) 
 	logger.Log.Debug("sending HTTP 200 response")
 }
 
+// UpdateURLMetric handles a POST request to update a metric using URL path parameters.
 func (handler *metricHandler) UpdateURLMetric(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		handleError(w, v.ErrMethodNotAllowed)
@@ -133,6 +137,7 @@ func (handler *metricHandler) UpdateURLMetric(w http.ResponseWriter, req *http.R
 	w.WriteHeader(http.StatusOK)
 }
 
+// GetURLMetric handles a GET request to retrieve a metric using URL path parameters.
 func (handler *metricHandler) GetURLMetric(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		handleError(w, v.ErrMethodNotAllowed)
@@ -157,6 +162,7 @@ func (handler *metricHandler) GetURLMetric(w http.ResponseWriter, req *http.Requ
 	w.Write([]byte(fmt.Sprint(value)))
 }
 
+// GetAllMetrics handles a GET request and returns all stored metrics as HTML text.
 func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		handleError(w, v.ErrMethodNotAllowed)
@@ -181,6 +187,8 @@ func (handler *metricHandler) GetAllMetrics(w http.ResponseWriter, req *http.Req
 		}
 	}
 }
+
+// UpdateMetrics handles a POST request to update multiple metrics provided in a JSON array.
 func (handler *metricHandler) UpdateMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		logger.Log.Warn("Invalid request method", zap.String("method", r.Method))
