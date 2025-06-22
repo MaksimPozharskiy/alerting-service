@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/mem"
 	"go.uber.org/zap"
 )
 
@@ -213,17 +212,4 @@ func (w *sentMetricWorker) sendMetric(ctx context.Context, metricsChan <-chan mo
 			return
 		}
 	}
-}
-
-func getVitualMemStatData(stats stats) {
-	v, err := mem.VirtualMemory()
-
-	if err != nil {
-		logger.Log.Error("Error description", zap.Error(err))
-		return
-	}
-
-	stats["TotalMemory"] = float64(v.Total)
-	stats["FreeMemory"] = float64(v.Free)
-	stats["CPUutilization1"] = float64(v.UsedPercent)
 }

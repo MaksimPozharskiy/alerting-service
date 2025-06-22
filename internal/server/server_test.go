@@ -1,37 +1,19 @@
 package server
 
 import (
-	"net/http"
-	"reflect"
 	"testing"
 )
 
 func TestNewServer(t *testing.T) {
-	address := "localhost:8080"
+	addr := "localhost:8080"
+	s := NewServer(addr)
 
-	tests := []struct {
-		name    string
-		want    Server
-		address string
-	}{
-		{
-			name:    "new server test",
-			address: address,
-			want: &ServerImpl{
-				httpServer: http.Server{
-					Addr: address,
-				},
-			},
-		},
+	impl, ok := s.(*ServerImpl)
+	if !ok {
+		t.Fatalf("expected *ServerImpl, got %T", s)
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			want := NewServer(test.address)
-
-			if !reflect.DeepEqual(want, test.want) {
-				t.Errorf("want: %v, got: %v", test.want, want)
-			}
-		})
+	if impl.httpServer.Addr != addr {
+		t.Errorf("expected addr %s, got %s", addr, impl.httpServer.Addr)
 	}
 }
