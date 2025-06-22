@@ -29,24 +29,19 @@ func HashMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, req)
 			return
 		}
-
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
 			http.Error(w, "Unable to read request body", http.StatusInternalServerError)
 			return
 		}
-
 		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-
 		expectedHash := GetHash(bodyBytes, hashKey)
+		receivedHash := req.Header.Get(HashSHA256)
 
-		receivedHash := req.Header.Get("HashSHA256")
-
-		if hmac.Equal([]byte(expectedHash), []byte(receivedHash)) {
-			w.WriteHeader(http.StatusBadRequest)
+		if !hmac.Equal([]byte(expectedHash), []byte(receivedHash)) {
+			http.Error(w, "invalid hash", http.StatusBadRequest)
 			return
 		}
-
 		next.ServeHTTP(w, req)
 	})
 }
