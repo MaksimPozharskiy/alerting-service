@@ -2,21 +2,22 @@ package agent
 
 import (
 	"alerting-service/internal/config"
+	"alerting-service/internal/logger"
 	"alerting-service/internal/models"
 	sign "alerting-service/internal/signature"
+	"context"
 
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"net/http"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/mem"
+	"go.uber.org/zap"
 )
 
 var pollCount int
@@ -28,59 +29,36 @@ type sentMetricWorker struct {
 	conf   *config.Config
 }
 
-// @TODO Переписать так что бы конфиг не передавался через аргументы, а брался через структурку
-type SendMetric func(client *http.Client, metric models.Metrics, conf *config.Config)
-
-func RuntimeAgent(client *http.Client) {
+func RuntimeAgent(ctx context.Context, client *http.Client) {
 	conf := config.GetConfig()
-
 	memStat := &runtime.MemStats{}
-
 	runtime.ReadMemStats(memStat)
-
-	var stats = make(map[string]float64)
-
+	stats := make(map[string]float64)
 	metricsChan := make(chan models.Metrics, 30)
-	// @TODO нужен ли результирующий канал? Например с err
-	// resultsChan := make(chan bool, numJobs)
+	resultsChan := make(chan error, conf.RateLimit)
 
 	for w := 1; w <= conf.RateLimit; w++ {
-
-		worker := sentMetricWorker{
-			client: client,
-			conf:   conf,
-		}
-
-		go worker.sendMetric(metricsChan)
+		worker := sentMetricWorker{client: client, conf: conf}
+		go worker.sendMetric(ctx, metricsChan, resultsChan)
 	}
 
 	go func() {
+		ticker := time.NewTicker(time.Duration(conf.PollInterval) * time.Second)
+		defer ticker.Stop()
 		for {
-			time.Sleep(time.Duration(conf.PollInterval) * time.Second)
-			pollCount++
-			runtime.ReadMemStats(memStat)
-			getMemStatData(memStat, stats)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				pollCount++
+				runtime.ReadMemStats(memStat)
+				getMemStatData(memStat, stats)
+			}
 		}
 	}()
 
-	go func() {
-		for {
-			time.Sleep(time.Duration(conf.PollInterval) * time.Second)
-			getVitualMemStatData(stats)
-		}
-	}()
-
-	go func() {
-		for {
-			time.Sleep(time.Duration(conf.ReportInterval) * time.Second)
-			stats["RandomValue"] = rand.Float64()
-			sendMetrics(stats, metricsChan)
-		}
-
-	}()
-
-	select {}
-
+	<-ctx.Done()
+	close(metricsChan)
 }
 
 func getMemStatData(memStat *runtime.MemStats, stats stats) {
@@ -133,108 +111,105 @@ func sendMetrics(stats stats, metricChan chan models.Metrics) {
 
 	metricChan <- metric
 }
-
-func sendGaugeMetric(client *http.Client, metric models.Metrics, conf *config.Config) {
-	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", conf.RunAddr, metric.ID, *metric.Value)
+func (w *sentMetricWorker) sendGaugeMetric(metric models.Metrics) error {
+	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", w.conf.RunAddr, metric.ID, *metric.Value)
 
 	body, err := json.Marshal(metric)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("marshal error", zap.Error(err))
+		return err
 	}
 
 	var buf bytes.Buffer
 	g := gzip.NewWriter(&buf)
-
 	_, err = io.Copy(g, strings.NewReader(string(body)))
+	g.Close()
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("gzip error", zap.Error(err))
+		return err
 	}
 
 	req, err := http.NewRequest("POST", url, &buf)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("request error", zap.Error(err))
+		return err
 	}
 
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
-	if conf.HashKey != "" {
-		signature := sign.GetHash(body, []byte(conf.HashKey))
+	if w.conf.HashKey != "" {
+		signature := sign.GetHash(body, []byte(w.conf.HashKey))
 		req.Header.Set(sign.HashSHA256, signature)
 	}
 
-	response, err := client.Do(req)
+	response, err := w.client.Do(req)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("http send error", zap.Error(err))
+		return err
 	}
-
 	defer response.Body.Close()
+	return nil
 }
 
-func sendCounterMetric(client *http.Client, metric models.Metrics, conf *config.Config) {
-	url := fmt.Sprintf("http://%s/update/counter/%s/%d", conf.RunAddr, metric.ID, *metric.Delta)
+func (w *sentMetricWorker) sendCounterMetric(metric models.Metrics) error {
+	url := fmt.Sprintf("http://%s/update/counter/%s/%d", w.conf.RunAddr, metric.ID, *metric.Delta)
 
 	body, err := json.Marshal(metric)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("marshal error", zap.Error(err))
+		return err
 	}
 
 	var buf bytes.Buffer
 	g := gzip.NewWriter(&buf)
-
 	_, err = io.Copy(g, strings.NewReader(string(body)))
+	g.Close()
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("gzip error", zap.Error(err))
+		return err
 	}
 
 	req, err := http.NewRequest("POST", url, &buf)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("request error", zap.Error(err))
+		return err
 	}
+
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
 
-	if conf.HashKey != "" {
-		signature := sign.GetHash(body, []byte(conf.HashKey))
+	if w.conf.HashKey != "" {
+		signature := sign.GetHash(body, []byte(w.conf.HashKey))
 		req.Header.Set(sign.HashSHA256, signature)
 	}
 
-	response, err := client.Do(req)
+	response, err := w.client.Do(req)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		logger.Log.Error("http send error", zap.Error(err))
+		return err
 	}
-
 	defer response.Body.Close()
+	return nil
 }
 
-func (w sentMetricWorker) sendMetric(metricsChan <-chan models.Metrics) {
-	for metric := range metricsChan {
-		switch metric.MType {
-		case models.GaugeMetric:
-			sendGaugeMetric(w.client, metric, w.conf)
-		case models.CounterMetric:
-			sendCounterMetric(w.client, metric, w.conf)
+func (w *sentMetricWorker) sendMetric(ctx context.Context, metricsChan <-chan models.Metrics, resultsChan chan<- error) {
+	for {
+		select {
+		case metric, ok := <-metricsChan:
+			if !ok {
+				return
+			}
+			var err error
+			switch metric.MType {
+			case models.GaugeMetric:
+				err = w.sendGaugeMetric(metric)
+			case models.CounterMetric:
+				err = w.sendCounterMetric(metric)
+			}
+			resultsChan <- err
+		case <-ctx.Done():
+			return
 		}
 	}
-}
-
-func getVitualMemStatData(stats stats) {
-	v, err := mem.VirtualMemory()
-
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-
-	stats["TotalMemory"] = float64(v.Total)
-	stats["FreeMemory"] = float64(v.Free)
-	stats["CPUutilization1"] = float64(v.UsedPercent)
 }

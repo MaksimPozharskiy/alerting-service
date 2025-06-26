@@ -6,18 +6,20 @@ import (
 	"strconv"
 )
 
+// Config holds configuration parameters for the agent.
 type Config struct {
-	RunAddr         string
-	LogLevel        string
-	StoreInterval   int
-	FileStoragePath string
-	Restore         bool
-	PollInterval    int
-	ReportInterval  int
-	HashKey         string
-	RateLimit       int
+	RunAddr         string // Server run address
+	LogLevel        string // Log level
+	StoreInterval   int    // Interval in seconds for writing metrics to a file
+	FileStoragePath string // Path to the file for storing metrics
+	Restore         bool   // Whether to restore metrics from the file on startup
+	PollInterval    int    // Interval for polling runtime metrics, in seconds
+	ReportInterval  int    // Interval for reporting metrics to the server, in seconds
+	HashKey         string // Secret key for signing metric payloads
+	RateLimit       int    // Number of parallel workers for sending metrics
 }
 
+// GetConfig parses configuration from command-line flags and environment variables.
 func GetConfig() *Config {
 	cfg := &Config{}
 
@@ -39,8 +41,8 @@ func GetConfig() *Config {
 	}
 
 	if envPollInterval := os.Getenv("POLL_INTERVAL"); envPollInterval != "" {
-		if envPollInterval, err := strconv.Atoi(envPollInterval); err == nil {
-			cfg.ReportInterval = envPollInterval
+		if val, err := strconv.Atoi(envPollInterval); err == nil {
+			cfg.PollInterval = val
 		}
 	}
 

@@ -84,13 +84,15 @@ func (s *MemStorageImp) SetMetrics(allMetrics []models.Metrics) {
 }
 
 func (s *MemStorageImp) UpdateMetrics(metrics []models.Metrics) error {
-	// for _, metric := range allMetrics {
-	// 	if metric.MType == models.GaugeMetric {
-	// 		s.gauges[metric.ID] = *metric.Value
-	// 	} else {
-	// 		s.counters[metric.ID] = int(*metric.Delta)
-	// 	}
-	// }
-
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, metric := range metrics {
+		if metric.MType == models.GaugeMetric && metric.Value != nil {
+			s.gauges[metric.ID] = *metric.Value
+		}
+		if metric.MType == models.CounterMetric && metric.Delta != nil {
+			s.counters[metric.ID] += int(*metric.Delta)
+		}
+	}
 	return nil
 }

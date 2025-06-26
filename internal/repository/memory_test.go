@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"alerting-service/internal/models"
+	"alerting-service/internal/utils"
 	"reflect"
 	"testing"
 )
@@ -162,5 +164,63 @@ func TestUpdateCounterMetric(t *testing.T) {
 				t.Errorf("want: %+v, got: %+v", test.want, want)
 			}
 		})
+	}
+}
+
+func TestGetMetrics(t *testing.T) {
+	storage := NewMemStorageRepository()
+	_ = storage.UpdateGaugeMetric("gauge1", 1.23)
+	_ = storage.UpdateCounterMetric("counter1", 10)
+
+	metrics, err := storage.GetMetrics()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(metrics) != 2 {
+		t.Errorf("expected 2 metrics, got %d", len(metrics))
+	}
+}
+
+func TestSetMetrics(t *testing.T) {
+	storage := NewMemStorageRepository()
+
+	metrics := []models.Metrics{
+		{ID: "g1", MType: models.GaugeMetric, Value: utils.FloatPtr(5.5)},
+		{ID: "c1", MType: models.CounterMetric, Delta: utils.IntPtr(15)},
+	}
+
+	storage.SetMetrics(metrics)
+
+	gv, gok, _ := storage.GetGaugeMetric("g1")
+	if !gok || gv != 5.5 {
+		t.Errorf("expected gauge 5.5, got %f", gv)
+	}
+	cv, cok, _ := storage.GetCounterMetric("c1")
+	if !cok || cv != 15 {
+		t.Errorf("expected counter 15, got %d", cv)
+	}
+}
+
+func TestUpdateMetrics(t *testing.T) {
+	storage := NewMemStorageRepository()
+
+	initial := []models.Metrics{
+		{ID: "c1", MType: models.CounterMetric, Delta: utils.IntPtr(10)},
+	}
+	_ = storage.UpdateMetrics(initial)
+
+	update := []models.Metrics{
+		{ID: "c1", MType: models.CounterMetric, Delta: utils.IntPtr(5)},
+		{ID: "g1", MType: models.GaugeMetric, Value: utils.FloatPtr(3.14)},
+	}
+	_ = storage.UpdateMetrics(update)
+
+	cv, cok, _ := storage.GetCounterMetric("c1")
+	if !cok || cv != 15 {
+		t.Errorf("expected counter 15, got %d", cv)
+	}
+	gv, gok, _ := storage.GetGaugeMetric("g1")
+	if !gok || gv != 3.14 {
+		t.Errorf("expected gauge 3.14, got %f", gv)
 	}
 }
