@@ -27,7 +27,7 @@ func TestWriteAndReadSingleMetric(t *testing.T) {
 		Value: utils.FloatPtr(3.14),
 	}
 
-	if err := bc.WriteMetric(metric); err != nil {
+	if err = bc.WriteMetric(metric); err != nil {
 		t.Fatalf("failed to write metric: %v", err)
 	}
 
@@ -66,7 +66,7 @@ func TestWriteAndReadMultipleMetrics(t *testing.T) {
 		{ID: "c1", MType: "counter", Delta: utils.IntPtr(10)},
 	}
 
-	if err := bc.WriteMetrics(metricsToWrite); err != nil {
+	if err = bc.WriteMetrics(metricsToWrite); err != nil {
 		t.Fatalf("failed to write metrics: %v", err)
 	}
 

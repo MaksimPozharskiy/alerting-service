@@ -95,7 +95,7 @@ func (d *DBStorageImp) GetMetrics() ([]models.Metrics, error) {
 		var value sql.NullFloat64
 		var delta sql.NullInt64
 
-		err := rows.Scan(&metric.ID, &metric.MType, &value, &delta)
+		err = rows.Scan(&metric.ID, &metric.MType, &value, &delta)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +163,7 @@ func (d *DBStorageImp) UpdateMetrics(metrics []models.Metrics) error {
 			delta = metric.Delta
 		}
 
-		_, err := d.retryExecute(context.Background(), stmt, metric.ID, metric.MType, value, delta)
+		_, err = d.retryExecute(context.Background(), stmt, metric.ID, metric.MType, value, delta)
 		if err != nil {
 			logger.Log.Error("Error executing SQL query", zap.String("metric_id", metric.ID), zap.Error(err))
 			return err

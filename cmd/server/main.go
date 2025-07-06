@@ -50,7 +50,7 @@ func main() {
 	server := server.NewServer(flagRunAddr)
 
 	r := chi.NewRouter()
-	if err := logger.Initialize(flagLogLevel); err != nil {
+	if err = logger.Initialize(flagLogLevel); err != nil {
 		panic(err)
 	}
 
@@ -109,11 +109,11 @@ func main() {
 			default:
 				time.Sleep(time.Duration(flagStoreInterval) * time.Second)
 
-				if err := os.Truncate(flagFileStoragePath, 0); err != nil {
+				if err = os.Truncate(flagFileStoragePath, 0); err != nil {
 					panic(err)
 				}
 
-				allMetrics, err := storageRepository.GetMetrics()
+				allMetrics, err = storageRepository.GetMetrics()
 				if err != nil {
 					panic(err)
 				}
@@ -148,6 +148,4 @@ func gracefulShutdown(cancelFunc context.CancelFunc, srv server.Server) {
 	if err := srv.Shutdown(ctx); err != nil {
 		fmt.Println("Error shutting down server:", err)
 	}
-
-	os.Exit(0)
 }

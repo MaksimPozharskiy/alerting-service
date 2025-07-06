@@ -22,7 +22,7 @@ func TestInitDB(t *testing.T) {
 
 	_, _ = db.Exec("DROP TABLE IF EXISTS metrics")
 
-	if err := InitDB(db); err != nil {
+	if err = InitDB(db); err != nil {
 		t.Fatalf("InitDB returned error: %v", err)
 	}
 
