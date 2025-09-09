@@ -1,0 +1,10 @@
+{
+    "address": "localhost:8080",
+    "restore": true,
+    "store_interval": "300s",
+    "store_file": "/tmp/metrics.db",
+    "database_dsn": "host=localhost user=metrics dbname=metrics sslmode=disable",
+    "crypto_key": "/path/to/private.key",
+    "log_level": "info",
+    "hash_key": "server-secret-key"
+}
