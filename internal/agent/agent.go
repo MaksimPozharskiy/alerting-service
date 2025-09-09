@@ -2,19 +2,19 @@ package agent
 
 import (
 	"alerting-service/internal/config"
+	"alerting-service/internal/crypto"
 	"alerting-service/internal/logger"
 	"alerting-service/internal/models"
 	sign "alerting-service/internal/signature"
 	"context"
+	"crypto/rsa"
 
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"runtime"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -25,8 +25,9 @@ var pollCount int
 type stats map[string]float64
 
 type sentMetricWorker struct {
-	client *http.Client
-	conf   *config.Config
+	client    *http.Client
+	conf      *config.Config
+	publicKey *rsa.PublicKey
 }
 
 func RuntimeAgent(ctx context.Context, client *http.Client) {
@@ -37,8 +38,17 @@ func RuntimeAgent(ctx context.Context, client *http.Client) {
 	metricsChan := make(chan models.Metrics, 30)
 	resultsChan := make(chan error, conf.RateLimit)
 
+	var publicKey *rsa.PublicKey
+	var err error
+	if conf.CryptoKey != "" {
+		publicKey, err = crypto.LoadPublicKey(conf.CryptoKey)
+		if err != nil {
+			logger.Log.Error("Failed to load public key, proceeding without encryption", zap.Error(err))
+		}
+	}
+
 	for w := 1; w <= conf.RateLimit; w++ {
-		worker := sentMetricWorker{client: client, conf: conf}
+		worker := sentMetricWorker{client: client, conf: conf, publicKey: publicKey}
 		go worker.sendMetric(ctx, metricsChan, resultsChan)
 	}
 
@@ -112,23 +122,32 @@ func sendMetrics(stats stats, metricChan chan models.Metrics) {
 	metricChan <- metric
 }
 func (w *sentMetricWorker) sendGaugeMetric(metric models.Metrics) error {
-	url := fmt.Sprintf("http://%s/update/gauge/%s/%f", w.conf.RunAddr, metric.ID, *metric.Value)
-
 	body, err := json.Marshal(metric)
 	if err != nil {
 		logger.Log.Error("marshal error", zap.Error(err))
 		return err
 	}
 
-	var buf bytes.Buffer
-	g := gzip.NewWriter(&buf)
-	_, err = io.Copy(g, strings.NewReader(string(body)))
-	g.Close()
-	if err != nil {
-		logger.Log.Error("gzip error", zap.Error(err))
-		return err
+	finalBody := body
+	if w.publicKey != nil {
+		finalBody, err = crypto.EncryptData(body, w.publicKey)
+		if err != nil {
+			logger.Log.Error("encryption error", zap.Error(err))
+			return err
+		}
 	}
 
+	var buf bytes.Buffer
+	g := gzip.NewWriter(&buf)
+	_, err = g.Write(finalBody)
+	if err != nil {
+		logger.Log.Error("gzip write error", zap.Error(err))
+		g.Close()
+		return err
+	}
+	g.Close()
+
+	url := fmt.Sprintf("http://%s/update", w.conf.RunAddr)
 	req, err := http.NewRequest("POST", url, &buf)
 	if err != nil {
 		logger.Log.Error("request error", zap.Error(err))
@@ -137,6 +156,10 @@ func (w *sentMetricWorker) sendGaugeMetric(metric models.Metrics) error {
 
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
+
+	if w.publicKey != nil {
+		req.Header.Set("Content-Encryption", "RSA")
+	}
 
 	if w.conf.HashKey != "" {
 		signature := sign.GetHash(body, []byte(w.conf.HashKey))
@@ -149,27 +172,37 @@ func (w *sentMetricWorker) sendGaugeMetric(metric models.Metrics) error {
 		return err
 	}
 	defer response.Body.Close()
+
 	return nil
 }
 
 func (w *sentMetricWorker) sendCounterMetric(metric models.Metrics) error {
-	url := fmt.Sprintf("http://%s/update/counter/%s/%d", w.conf.RunAddr, metric.ID, *metric.Delta)
-
 	body, err := json.Marshal(metric)
 	if err != nil {
 		logger.Log.Error("marshal error", zap.Error(err))
 		return err
 	}
 
-	var buf bytes.Buffer
-	g := gzip.NewWriter(&buf)
-	_, err = io.Copy(g, strings.NewReader(string(body)))
-	g.Close()
-	if err != nil {
-		logger.Log.Error("gzip error", zap.Error(err))
-		return err
+	finalBody := body
+	if w.publicKey != nil {
+		finalBody, err = crypto.EncryptData(body, w.publicKey)
+		if err != nil {
+			logger.Log.Error("encryption error", zap.Error(err))
+			return err
+		}
 	}
 
+	var buf bytes.Buffer
+	g := gzip.NewWriter(&buf)
+	_, err = g.Write(finalBody)
+	if err != nil {
+		logger.Log.Error("gzip write error", zap.Error(err))
+		g.Close()
+		return err
+	}
+	g.Close()
+
+	url := fmt.Sprintf("http://%s/update", w.conf.RunAddr)
 	req, err := http.NewRequest("POST", url, &buf)
 	if err != nil {
 		logger.Log.Error("request error", zap.Error(err))
@@ -178,6 +211,10 @@ func (w *sentMetricWorker) sendCounterMetric(metric models.Metrics) error {
 
 	req.Header.Add("Accept-Encoding", "gzip")
 	req.Header.Set("Content-Type", "application/json")
+
+	if w.publicKey != nil {
+		req.Header.Set("Content-Encryption", "RSA")
+	}
 
 	if w.conf.HashKey != "" {
 		signature := sign.GetHash(body, []byte(w.conf.HashKey))
@@ -190,6 +227,7 @@ func (w *sentMetricWorker) sendCounterMetric(metric models.Metrics) error {
 		return err
 	}
 	defer response.Body.Close()
+
 	return nil
 }
 

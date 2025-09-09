@@ -14,10 +14,12 @@ var (
 	flagRestore            bool
 	flagDBConnectionString string
 	flagHashKey            string
+	flagCryptoKey          string
 )
 
 // -d "host=localhost user=metrics password=userpassword dbname=metrics sslmode=disable"
 func parseFlags() error {
+	flag.StringVar(&flagCryptoKey, "crypto-key", "", "path to the private key file")
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.StringVar(&flagLogLevel, "l", "info", "log level")
 	flag.IntVar(&flagStoreInterval, "i", 300, "interbal for storing data on a disk")
@@ -61,6 +63,10 @@ func parseFlags() error {
 			return err
 		}
 		flagRestore = boolValue
+	}
+
+	if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
+		flagCryptoKey = envCryptoKey
 	}
 
 	return nil

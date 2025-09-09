@@ -2,6 +2,7 @@ package main
 
 import (
 	"alerting-service/internal/compressor"
+	"alerting-service/internal/crypto"
 	"alerting-service/internal/db"
 	handlers "alerting-service/internal/handlers"
 	"alerting-service/internal/logger"
@@ -12,12 +13,15 @@ import (
 	"alerting-service/internal/signature"
 	"alerting-service/internal/usecases"
 	"context"
+	"crypto/rsa"
 	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -57,11 +61,21 @@ func main() {
 
 	server := server.NewServer(flagRunAddr)
 
+	var privateKey *rsa.PrivateKey
+
+	if flagCryptoKey != "" {
+		privateKey, err = crypto.LoadPrivateKey(flagCryptoKey)
+		if err != nil {
+			logger.Log.Error("Failed to load private key, proceeding without decryption", zap.Error(err))
+		}
+	}
+
 	r := chi.NewRouter()
 	if err := logger.Initialize(flagLogLevel); err != nil {
 		panic(err)
 	}
 
+	r.Use(crypto.DecryptionMiddleware(privateKey))
 	r.Use(logger.RequestLogger)
 	r.Use(logger.ResponseLogger)
 	r.Use(compressor.GzipMiddleware)
@@ -165,17 +179,17 @@ func printBuildInfo() {
 	if version == "" {
 		version = "N/A"
 	}
-	
+
 	date := buildDate
 	if date == "" {
 		date = "N/A"
 	}
-	
+
 	commit := buildCommit
 	if commit == "" {
 		commit = "N/A"
 	}
-	
+
 	fmt.Printf("Build version: %s\n", version)
 	fmt.Printf("Build date: %s\n", date)
 	fmt.Printf("Build commit: %s\n", commit)
