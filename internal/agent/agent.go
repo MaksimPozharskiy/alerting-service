@@ -8,6 +8,7 @@ import (
 	sign "alerting-service/internal/signature"
 	"context"
 	"crypto/rsa"
+	"sync"
 
 	"bytes"
 	"compress/gzip"
@@ -47,28 +48,81 @@ func RuntimeAgent(ctx context.Context, client *http.Client) {
 		}
 	}
 
+	var wg sync.WaitGroup
+
 	for w := 1; w <= conf.RateLimit; w++ {
 		worker := sentMetricWorker{client: client, conf: conf, publicKey: publicKey}
-		go worker.sendMetric(ctx, metricsChan, resultsChan)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			worker.sendMetric(ctx, metricsChan, resultsChan)
+		}()
 	}
 
+	reportTicker := time.NewTicker(time.Duration(conf.ReportInterval) * time.Second)
+	defer reportTicker.Stop()
+
+	pollTicker := time.NewTicker(time.Duration(conf.PollInterval) * time.Second)
+	defer pollTicker.Stop()
+
 	go func() {
-		ticker := time.NewTicker(time.Duration(conf.PollInterval) * time.Second)
-		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
+				logger.Log.Info("Shutdown signal received, sending remaining metrics...")
+				sendMetrics(stats, metricsChan)
+				close(metricsChan)
 				return
-			case <-ticker.C:
+			case <-pollTicker.C:
 				pollCount++
 				runtime.ReadMemStats(memStat)
 				getMemStatData(memStat, stats)
+			case <-reportTicker.C:
+				sendMetrics(stats, metricsChan)
 			}
 		}
 	}()
 
 	<-ctx.Done()
-	close(metricsChan)
+
+	wg.Wait()
+
+	close(resultsChan)
+
+	for err := range resultsChan {
+		if err != nil {
+			logger.Log.Error("Error sending metric during shutdown", zap.Error(err))
+		}
+	}
+
+	logger.Log.Info("Agent stopped gracefully")
+}
+
+func (w *sentMetricWorker) sendMetric(ctx context.Context, metricsChan <-chan models.Metrics, resultsChan chan<- error) {
+	for {
+		select {
+		case metric, ok := <-metricsChan:
+			if !ok {
+				return
+			}
+			var err error
+			select {
+			case <-ctx.Done():
+				resultsChan <- nil
+				return
+			default:
+				switch metric.MType {
+				case models.GaugeMetric:
+					err = w.sendGaugeMetric(metric)
+				case models.CounterMetric:
+					err = w.sendCounterMetric(metric)
+				}
+				resultsChan <- err
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func getMemStatData(memStat *runtime.MemStats, stats stats) {
@@ -108,7 +162,6 @@ func sendMetrics(stats stats, metricChan chan models.Metrics) {
 			MType: "gauge",
 			Value: &value,
 		}
-
 		metricChan <- metric
 	}
 
@@ -118,9 +171,9 @@ func sendMetrics(stats stats, metricChan chan models.Metrics) {
 		MType: "counter",
 		Delta: &pollCount,
 	}
-
 	metricChan <- metric
 }
+
 func (w *sentMetricWorker) sendGaugeMetric(metric models.Metrics) error {
 	body, err := json.Marshal(metric)
 	if err != nil {
@@ -229,25 +282,4 @@ func (w *sentMetricWorker) sendCounterMetric(metric models.Metrics) error {
 	defer response.Body.Close()
 
 	return nil
-}
-
-func (w *sentMetricWorker) sendMetric(ctx context.Context, metricsChan <-chan models.Metrics, resultsChan chan<- error) {
-	for {
-		select {
-		case metric, ok := <-metricsChan:
-			if !ok {
-				return
-			}
-			var err error
-			switch metric.MType {
-			case models.GaugeMetric:
-				err = w.sendGaugeMetric(metric)
-			case models.CounterMetric:
-				err = w.sendCounterMetric(metric)
-			}
-			resultsChan <- err
-		case <-ctx.Done():
-			return
-		}
-	}
 }

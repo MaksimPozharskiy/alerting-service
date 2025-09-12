@@ -16,6 +16,7 @@ import (
 	"crypto/rsa"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -120,58 +121,72 @@ func main() {
 	}
 	storageRepository.SetMetrics(allMetrics)
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go gracefulShutdown(cancelFunc, server)
+	idleConnsClosed := make(chan struct{})
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
+		<-sigint
+		logger.Log.Info("Received shutdown signal")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			logger.Log.Error("Error shutting down server", zap.Error(err))
+		}
+
+		allMetrics, err := storageRepository.GetMetrics()
+		if err != nil {
+			logger.Log.Error("Error getting metrics for backup", zap.Error(err))
+		} else {
+			if err := backupController.WriteMetrics(allMetrics); err != nil {
+				logger.Log.Error("Error writing backup", zap.Error(err))
+			} else {
+				logger.Log.Info("Metrics successfully saved before shutdown")
+			}
+		}
+
+		logger.Log.Info("Server shutdown completed")
+		close(idleConnsClosed)
+	}()
+
+	go func() {
+		if err := server.Start(r); err != nil && err != http.ErrServerClosed {
+			logger.Log.Error("Error starting server", zap.Error(err))
+			close(idleConnsClosed)
+		}
+	}()
+
+	go func() {
+		ticker := time.NewTicker(time.Duration(flagStoreInterval) * time.Second)
+		defer ticker.Stop()
+
 		for {
 			select {
-			case <-ctx.Done():
-				return
-			default:
-				time.Sleep(time.Duration(flagStoreInterval) * time.Second)
-
+			case <-ticker.C:
 				if err := os.Truncate(flagFileStoragePath, 0); err != nil {
-					panic(err)
+					logger.Log.Error("Error truncating backup file", zap.Error(err))
+					continue
 				}
 
 				allMetrics, err := storageRepository.GetMetrics()
 				if err != nil {
-					panic(err)
+					logger.Log.Error("Error getting metrics for backup", zap.Error(err))
+					continue
 				}
 
-				err = backupController.WriteMetrics(allMetrics)
-
-				if err != nil {
-					panic(err)
+				if err := backupController.WriteMetrics(allMetrics); err != nil {
+					logger.Log.Error("Error writing backup", zap.Error(err))
 				}
+			case <-idleConnsClosed:
+				return
 			}
 		}
 	}()
 
-	err = server.Start(r)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func gracefulShutdown(cancelFunc context.CancelFunc, srv server.Server) {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	s := <-quit
-
-	fmt.Println("graceful shutdown", s)
-
-	cancelFunc()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		fmt.Println("Error shutting down server:", err)
-	}
-
-	os.Exit(0)
+	<-idleConnsClosed
+	logger.Log.Info("Server stopped gracefully")
 }
 
 func printBuildInfo() {
